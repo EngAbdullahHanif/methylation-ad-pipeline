@@ -1,0 +1,2 @@
+detection_threshold	minimum_detection_fraction	missing_beta_values	imputation_method	cross_reactive_filter_applied	cross_reactive_filter_note
+0.01	0.8	0	none: no missing beta values were observed after filtering	FALSE	No validated EPIC list supplied by allowed installed packages; no unverified list substituted.
