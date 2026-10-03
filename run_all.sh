@@ -7,4 +7,4 @@ Rscript scripts/02_normalisation.R
 Rscript scripts/03_exploration_and_differential.R
 Rscript scripts/06_enrichment.R
 Rscript -e 'rmarkdown::render("report/analysis_report.Rmd", output_dir = "report")'
-printf 'Completed milestones M0-M4.\\n'
+printf 'Workflow completed.\\n'

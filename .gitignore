@@ -21,6 +21,7 @@ renv/staging/
 /results/detection_p.rds
 /results/differential_methylation.tsv
 report/analysis_report.html
+/docs/INTERVIEW_NOTES_PRIVATE.md
 
 # Operating-system files
 .DS_Store
