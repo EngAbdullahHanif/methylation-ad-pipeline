@@ -19,6 +19,7 @@ renv/staging/
 !/results/.gitkeep
 /results/rg_set_raw.rds
 /results/detection_p.rds
+/results/differential_methylation.tsv
 report/analysis_report.html
 
 # Operating-system files

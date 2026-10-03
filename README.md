@@ -23,6 +23,10 @@ The diagnosis variable will be defined from the verified GSE212682 metadata fiel
 
 The 10-sample subset was normalized with minfi Noob. Filtering retained probes that passed the detection-p threshold in at least 80% of samples, were autosomal, and had no annotated CpG or single-base-extension SNP. The allowed package set does not provide a validated EPIC cross-reactive-probe list, so that filter is explicitly recorded as not applied; no unverified list was substituted. Missing beta values were checked after filtering and no imputation was needed. Exact counts are in `results/probe_filter_counts.tsv`.
 
+### M3 results
+
+PCA and batch summaries were generated from the filtered beta matrix. Age is constant (`90+`) in the selected samples, and diagnosis is confounded with the observed batch groups, so the primary limma model is diagnosis-only; batch was not blindly removed. Limma tests M-values and reports beta-scale delta values. The executed exploratory result contains 4 probes meeting FDR < 0.05 and absolute delta-beta >= 0.05, with genomic inflation factor 0.625. DMRcate was run on the full filtered probe set with EPICv1 annotation, lambda 1000 bp, a minimum of two consecutive CpGs, and FDR cutoff; it returned 1 region. These results are exploratory and not biological claims because the subset is only 10 samples and batch is confounded with diagnosis.
+
 ## M0: verify the dataset
 
 Open these records in a browser:

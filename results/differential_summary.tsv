@@ -1,0 +1,2 @@
+model	coefficient	n_samples	n_probes	significant_fdr_005_delta_beta_005	genomic_inflation_factor	model_note
+~ diagnosis	diagnosisAD	10	815651	4	0.625021454757326	Primary model is diagnosis-only: age is constant and diagnosis is confounded with batch in this 10-sample subset; adding batch would make the diagnosis effect non-identifiable.

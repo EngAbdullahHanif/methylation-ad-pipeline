@@ -1,0 +1,2 @@
+method	status	n_regions	note
+DMRcate	complete	1	DMRcate EPICv1 on the full filtered probe set, lambda 1000 bp, minimum 2 consecutive CpGs, FDR cutoff.

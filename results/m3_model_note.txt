@@ -1,0 +1,1 @@
+Primary model is diagnosis-only: age is constant and diagnosis is confounded with batch in this 10-sample subset; adding batch would make the diagnosis effect non-identifiable.

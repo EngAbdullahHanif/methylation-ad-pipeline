@@ -1,0 +1,2 @@
+seqnames	start	end	width	strand	no.cpgs	min_smoothed_fdr	Stouffer	HMFDR	Fisher	maxdiff	meandiff	overlapping.genes
+chr6	32551888	32552022	135	*	4	1.30885490421665e-70	3.67765508006262e-16	3.78869416319494e-09	1.44361478005962e-17	0.316707260438691	0.225436989204466	HLA-DRB1
