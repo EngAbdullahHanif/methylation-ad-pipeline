@@ -1,0 +1,2 @@
+input_cpgs	ranked_cpgs_used	ranking	method	collections	interpretation
+815651	100	ascending limma p-value, then descending absolute delta-beta	missMethyl gometh with probe-number bias correction	GO and KEGG	Exploratory only; the ranked set is used because the strict significant set is small.
