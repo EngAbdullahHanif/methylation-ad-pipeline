@@ -1,0 +1,25 @@
+# R and renv local state
+.Rhistory
+.RData
+.Rproj.user/
+renv/library/
+renv/staging/
+
+# Raw and downloaded data
+/data/raw/*
+!/data/raw/.gitkeep
+
+# Downloaded GEO intermediates
+/data/metadata/*.soft.gz
+/data/metadata/*_series_matrix.txt.gz
+/data/metadata/*_series.txt
+
+# Generated results and report output
+/results/*
+!/results/.gitkeep
+/results/rg_set_raw.rds
+/results/detection_p.rds
+report/analysis_report.html
+
+# Operating-system files
+.DS_Store

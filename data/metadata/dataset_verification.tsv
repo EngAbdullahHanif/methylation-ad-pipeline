@@ -1,0 +1,4 @@
+accession	platform	raw_idats	sample_count	study_tissue	metadata_verified	selected
+GSE80970	Illumina HumanMethylation450 BeadChip (GPL13534)	no	286	prefrontal cortex; superior temporal gyrus	tissue; disease status; Braak stage; age; gender; donor ID; sentrix id; series archive checked and contained no IDATs	no
+GSE59685	Illumina HumanMethylation450 BeadChip (GPL13534)	no	531	entorhinal cortex; superior temporal gyrus; prefrontal cortex; cerebellum; whole blood	series archive checked and contained no IDATs	no
+GSE212682	Illumina Infinium MethylationEPIC 850K	642 IDAT files	321 samples across eight brain regions	brain region; sex; age; diagnosis-related fields; bisulfite batch; batch; sample-level IDAT links	yes	yes
