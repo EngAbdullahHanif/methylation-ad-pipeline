@@ -1,2 +1,2 @@
-method	status	n_regions	note
-DMRcate	complete	1	DMRcate EPICv1 on the full filtered probe set, lambda 1000 bp, minimum 2 consecutive CpGs, FDR cutoff.
+method	status	n_regions	n_fdr_significant_cpgs	note
+DMRcate	insufficient significant CpGs	0	0	Fewer than two individually significant CpGs in DMRcate at FDR 0.05.

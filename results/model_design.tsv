@@ -1,0 +1,3 @@
+analysis	model	coefficient	n_samples	n_control	n_ad	n_batches	design_columns	design_rank	residual_df
+primary	~diagnosis + batch + sex + proportion_neurons	diagnosisAD	29	18	11	12	15	15	14
+shared_batches	~diagnosis + batch + sex + proportion_neurons	diagnosisAD	10	4	6	3	6	6	4

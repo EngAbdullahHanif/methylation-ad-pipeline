@@ -17,6 +17,10 @@ qc <- read.delim(file.path(results_dir, "qc_summary.tsv"), check.names = FALSE)
 sex <- read.delim(file.path(results_dir, "sex_check.tsv"), check.names = FALSE)
 filters <- read.delim(file.path(results_dir, "probe_filter_counts.tsv"), check.names = FALSE)
 diff_summary <- read.delim(file.path(results_dir, "differential_summary.tsv"), check.names = FALSE)
+model_design <- read.delim(file.path(results_dir, "model_design.tsv"), check.names = FALSE)
+batch_overlap <- read.delim(file.path(results_dir, "batch_overlap.tsv"), check.names = FALSE)
+sensitivity <- read.delim(file.path(results_dir, "differential_sensitivity_summary.tsv"), check.names = FALSE)
+sensitivity_top <- read.delim(file.path(results_dir, "differential_sensitivity_top.tsv"), check.names = FALSE)
 dmr_summary <- read.delim(file.path(results_dir, "dmr_summary.tsv"), check.names = FALSE)
 enrichment_summary <- read.delim(file.path(results_dir, "enrichment_summary.tsv"), check.names = FALSE)
 enrichment <- read.delim(file.path(results_dir, "enrichment_results.tsv"), check.names = FALSE)
@@ -27,14 +31,14 @@ metadata <- read.delim(file.path(metadata_dir, "sample_sheet_clean.tsv"), check.
 
 This report demonstrates a reproducible workflow for exploratory human brain DNA methylation array analysis in an Alzheimer's disease context. It is a methods demonstration, not a claim of biological discovery.
 
-The data are from GEO accession GSE212682 and were generated with an Illumina MethylationEPIC array. The analysis uses the selected brain region and the fixed, balanced subset described in the repository README. Raw IDAT files are not included in the repository.
+The data are from GEO accession GSE212682 and were generated with an Illumina MethylationEPIC array. All eligible middle frontal gyrus samples with diagnosis codes 0 (control) and 2 (AD) entered sample QC. The intermediate diagnosis group was excluded. The table shows the samples that passed QC and entered the primary model.
 
 ```{r sample-summary}
 knitr::kable(as.data.frame(table(metadata$diagnosis)),
              col.names = c("Diagnosis", "Samples"))
 ```
 
-The selected metadata fields and their observed values are shown below. Age is reported as supplied by GEO; no numeric age was invented when the source value was `90+`.
+GEO reports age as `90+` for this cohort. The analysis retains that value and excludes age from the models. Cell proportions are EpiSCORE estimates published by the original study.
 
 ```{r metadata-summary}
 knitr::kable(data.frame(
@@ -48,11 +52,18 @@ knitr::kable(data.frame(
     paste(unique(metadata$age_raw), collapse = "; ")
   )
 ))
+cell_proportions <- metadata[startsWith(names(metadata), "proportion_")]
+knitr::kable(data.frame(
+  cell_type = sub("^proportion_", "", names(cell_proportions)),
+  minimum = vapply(cell_proportions, min, numeric(1)),
+  median = vapply(cell_proportions, median, numeric(1)),
+  maximum = vapply(cell_proportions, max, numeric(1))
+), digits = 3)
 ```
 
 # QC and normalization
 
-Mean detection p-values were used as a sample-level assay performance check. The threshold and observed results below come directly from the QC output.
+Samples with a mean detection p-value above 0.01 or a missing or non-finite mean were excluded before normalization. The QC table covers every eligible sample.
 
 ```{r qc-summary}
 knitr::kable(qc)
@@ -89,7 +100,11 @@ The final beta matrix was checked for missing values. No imputation was performe
 
 # PCA and batch assessment
 
-PCA was used to inspect the largest axes of variation. Batch was visualized but not removed blindly. In this subset, age has no variation and diagnosis is confounded with the observed batch groups; therefore the primary differential model does not include batch.
+PCA describes variation before adjustment. The array-batch and bisulfite-batch labels identify the same groups in this cohort. The primary model includes array batch as a fixed effect. Batches containing only one diagnosis contribute to nuisance estimates and residual variation. The direct within-batch diagnosis contrast comes from batches that include both groups.
+
+```{r batch-overlap}
+knitr::kable(batch_overlap)
+```
 
 ![PCA by diagnosis](../results/pca_by_diagnosis.pdf)
 
@@ -104,9 +119,10 @@ knitr::kable(pc_tests)
 
 # Differential methylation
 
-Limma testing was performed on M-values. Delta-beta values are reported for interpretation on the beta scale. The workflow exports the 100 probes with the smallest limma p-values for the report and app. The first ten are shown below.
+The primary model fits the AD versus control contrast on M-values with limma and adjusts for array batch, recorded sex, and estimated neuronal proportion. Using neuronal proportion as a single covariate preserves degrees of freedom in the smaller shared-batch fit. Adjusted delta beta is the coefficient from the same design fitted on the beta scale. The workflow verifies full column rank and positive residual degrees of freedom before either fit. The displayed probes are ranked by the primary limma p-value.
 
 ```{r differential}
+knitr::kable(model_design)
 knitr::kable(diff_summary)
 differential <- read.delim(file.path(results_dir, "differential_top.tsv"), check.names = FALSE)
 knitr::kable(head(differential, 10))
@@ -116,19 +132,32 @@ knitr::kable(head(differential, 10))
 
 ![Differential methylation QQ plot](../results/differential_qq.pdf)
 
+The primary genomic inflation factor is `r sprintf("%.3f", diff_summary$genomic_inflation_factor)`. The QQ plot and inflation factor describe departures from the expected null p-value distribution.
+
+# Shared-batch sensitivity analysis
+
+The sensitivity fit uses only array batches with both diagnosis groups. It uses the same covariates and the same filtered probes so the estimates can be compared probe by probe. Both models share samples. Their agreement measures describe sensitivity to the cohort restriction, and the smaller fit has fewer residual degrees of freedom.
+
+The M-value effect correlation is `r sprintf("%.3f", sensitivity$m_effect_pearson_r)`. Among the 100 primary top-ranked probes, `r sprintf("%.0f%%", 100 * sensitivity$top_m_direction_agreement)` have the same effect direction. The primary and shared-batch fits had `r sensitivity$primary_passing_both_cutoffs` and `r sensitivity$shared_passing_both_cutoffs` probes, respectively, meeting both FDR < 0.05 and absolute adjusted delta beta ≥ 0.05.
+
+```{r sensitivity}
+knitr::kable(sensitivity, digits = 4)
+knitr::kable(head(sensitivity_top, 10), digits = 4)
+```
+
 # DMRcate
 
-DMRcate was run with EPICv1 annotation, a 1000 base-pair smoothing window, at least two consecutive CpGs, and an FDR cutoff. The result is exploratory and strongly dependent on the small sample and confounded design.
+DMRcate uses the primary covariate design and EPICv1 annotation. Region calling uses FDR-based smoothing over a 1000 bp window and requires a minimum of two CpGs.
 
 ```{r dmr}
 knitr::kable(dmr_summary)
 dmr_ranges <- read.delim(file.path(results_dir, "dmr_ranges.tsv"), check.names = FALSE)
-knitr::kable(head(dmr_ranges, 10))
+if (nrow(dmr_ranges)) knitr::kable(head(dmr_ranges, 10))
 ```
 
 # Enrichment
 
-`missMethyl::gometh` was used because it accounts for the unequal number of array probes mapping to genes. The strict differential list was small, so the script used a code-derived ranked set of the top CpGs by limma p-value, with all filtered CpGs as the background. The result is exploratory and is not evidence of pathway discovery.
+`missMethyl::gometh` accounts for the unequal number of array probes mapping to genes. It uses the 100 CpGs with lowest primary limma p-values and all filtered CpGs as the background. The results describe exploratory enrichment of that ranked list.
 
 ```{r enrichment}
 knitr::kable(enrichment_summary)
@@ -139,12 +168,11 @@ knitr::kable(head(enrichment[, c("collection", "pathway_id", "Description", "P.D
 
 # Limitations
 
-- The raw EPIC analysis uses a small, laptop-memory-constrained subset.
-- Diagnosis and batch are confounded in this subset.
+- The cohort covers one brain region, with diagnosis overlap in only part of the batch structure.
 - Age is supplied as `90+` and has no usable numeric variation here.
-- Brain tissue is bulk tissue with unknown cell-type composition.
+- Bulk brain tissue estimates adjust for neuronal proportion, which leaves possible confounding by other cell types and uncertainty in the published estimates.
 - There is no replication cohort in this demonstration.
-- The differential and enrichment results are exploratory.
+- Elevated genomic inflation warrants caution when interpreting the p-values. The shared-batch comparison uses overlapping samples.
 - A validated EPIC cross-reactive-probe list was not available in the allowed package set.
 - The full differential table is kept locally because it exceeds GitHub's file-size limit.
 

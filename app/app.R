@@ -25,6 +25,12 @@ pca_scores <- read_required(file.path(results_dir, "pca_scores.tsv"),
                            c("sample_id", "PC1", "PC2", "diagnosis", "sex", "batch", "bisulfite_batch"))
 differential <- read_required(file.path(results_dir, "differential_top.tsv"),
                              c("CpG", "delta_beta", "P.Value", "adj.P.Val"))
+model_design <- read_required(file.path(results_dir, "model_design.tsv"),
+                              c("analysis", "n_samples", "n_control", "n_ad", "n_batches",
+                                "design_rank", "residual_df"))
+sensitivity <- read_required(file.path(results_dir, "differential_sensitivity_summary.tsv"),
+                              c("m_effect_pearson_r", "top_m_direction_agreement",
+                                "shared_passing_both_cutoffs"))
 enrichment <- read_required(file.path(results_dir, "enrichment_results.tsv"),
                            c("Description", "FDR", "collection", "pathway_id"))
 qc_summary <- read_required(file.path(results_dir, "qc_summary.tsv"), "qc_status")
@@ -37,9 +43,10 @@ pca_scores$diagnosis <- as.character(pca_scores$diagnosis)
 enrichment <- enrichment[!is.na(enrichment$Description) & !is.na(enrichment$FDR), , drop = FALSE]
 
 make_pca_plot <- function(data, colour_by) {
-  plot_ly(data, x = ~PC1, y = ~PC2, type = "scatter", mode = "markers+text",
-          text = ~sample_id, textposition = "top center", color = data[[colour_by]],
-          marker = list(size = 10)) |>
+  groups <- factor(data[[colour_by]])
+  plot_ly(data, x = ~PC1, y = ~PC2, type = "scatter", mode = "markers",
+          text = ~sample_id, hoverinfo = "text+x+y", color = groups,
+          colors = grDevices::hcl.colors(nlevels(groups), "Dark 3"), marker = list(size = 10)) |>
     layout(xaxis = list(title = "PC1"), yaxis = list(title = "PC2"),
            legend = list(title = list(text = colour_by)))
 }
@@ -49,7 +56,7 @@ make_volcano_plot <- function(data) {
   plot_ly(data, x = ~delta_beta, y = ~neg_log10_p, type = "scatter", mode = "markers",
           text = ~paste("CpG:", CpG, "<br>FDR:", signif(adj.P.Val, 3)),
           hoverinfo = "text", marker = list(size = 7)) |>
-    layout(xaxis = list(title = "Delta beta: AD - Control"),
+    layout(xaxis = list(title = "Adjusted delta beta (AD - Control)"),
            yaxis = list(title = "-log10(p-value)"))
 }
 
@@ -70,7 +77,7 @@ make_probe_plot <- function(query) {
   plot_ly(values, x = ~diagnosis, y = ~beta, color = ~diagnosis,
           type = "box", jitter = 0.25, pointpos = 0, boxpoints = "all",
           text = ~sample_id, hoverinfo = "text+y") |>
-    layout(xaxis = list(title = "Diagnosis"), yaxis = list(title = "Beta value"))
+    layout(xaxis = list(title = "Diagnosis"), yaxis = list(title = "Observed beta value"))
 }
 
 ui <- navbarPage(
@@ -80,7 +87,8 @@ ui <- navbarPage(
            p("This app displays precomputed results. It does not process raw IDAT files."),
            tableOutput("overview_counts"),
            tableOutput("overview_qc"),
-           p("The current analysis uses a small, balanced middle frontal gyrus subset. Results are exploratory.")),
+           h4("Model design"), tableOutput("overview_design"),
+           p("The models adjust for array batch, recorded sex, and estimated neuronal proportion. The sensitivity model uses batches with both diagnoses.")),
   tabPanel("Sample explorer",
            selectInput("pca_colour", "Color PCA by", choices = c("diagnosis", "sex", "batch", "bisulfite_batch")),
            plotlyOutput("pca_plot", height = "600px")),
@@ -89,10 +97,11 @@ ui <- navbarPage(
              sidebarPanel(
                p("Filters apply to the top 100 probes ranked by limma p-value."),
                sliderInput("fdr_cutoff", "Maximum FDR", min = 0, max = 1, value = 0.2, step = 0.01),
-               sliderInput("delta_cutoff", "Minimum absolute delta-beta", min = 0, max = 1, value = 0, step = 0.01),
+               sliderInput("delta_cutoff", "Minimum absolute adjusted delta beta", min = 0, max = 1, value = 0, step = 0.01),
                downloadButton("download_diff", "Download filtered results")
              ),
-             mainPanel(plotlyOutput("volcano_plot", height = "500px"), DTOutput("diff_table"))
+             mainPanel(plotlyOutput("volcano_plot", height = "500px"), DTOutput("diff_table"),
+                       h4("Shared-batch sensitivity"), tableOutput("sensitivity_summary"))
            )),
   tabPanel("Probe viewer",
            textInput("probe_query", "CpG ID", value = "", placeholder = "Example: cg00000029"),
@@ -122,6 +131,22 @@ server <- function(input, output, session) {
     )
   })
 
+  output$overview_design <- renderTable({
+    data.frame(Analysis = c("Primary", "Shared batches")[match(model_design$analysis,
+                                                               c("primary", "shared_batches"))],
+               Samples = model_design$n_samples, Controls = model_design$n_control,
+               AD = model_design$n_ad, Batches = model_design$n_batches,
+               Rank = model_design$design_rank, `Residual df` = model_design$residual_df,
+               check.names = FALSE)
+  })
+
+  output$sensitivity_summary <- renderTable({
+    data.frame(`M-value effect correlation` = sensitivity$m_effect_pearson_r,
+               `Top-100 direction agreement (%)` = 100 * sensitivity$top_m_direction_agreement,
+               `Shared-batch probes passing both cutoffs` = sensitivity$shared_passing_both_cutoffs,
+               check.names = FALSE)
+  })
+
   output$pca_plot <- renderPlotly({
     make_pca_plot(pca_scores, input$pca_colour)
   })
@@ -141,9 +166,9 @@ server <- function(input, output, session) {
 
   output$probe_note <- renderUI({
     if (is.null(beta_values)) {
-      return(p("Beta values are not available. Run M2 locally before starting the app."))
+      return(p("Run the workflow locally to enable the probe viewer."))
     }
-    p("Enter an exact CpG ID. Gene-level lookup is unavailable because gene annotations were not part of the precomputed M5 input.")
+    p("Enter an exact CpG ID to plot the observed beta values by diagnosis.")
   })
 
   output$probe_plot <- renderPlotly({
