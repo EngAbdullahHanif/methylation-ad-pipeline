@@ -27,7 +27,7 @@ ranked_n <- min(100L, nrow(ranked))
 sig_cpg <- ranked$CpG[seq_len(ranked_n)]
 
 run_gometh <- function(collection_name) {
-  tryCatch(
+  result <- tryCatch(
     gometh(
       sig.cpg = sig_cpg,
       all.cpg = all_cpg,
@@ -37,33 +37,29 @@ run_gometh <- function(collection_name) {
       prior.prob = TRUE
     ),
     error = function(error) {
-      data.frame(
-        Pathway = NA_character_,
-        P.DE = NA_real_,
-        FDR = NA_real_,
-        error = conditionMessage(error),
-        stringsAsFactors = FALSE
-      )
+      stop(collection_name, " enrichment failed: ", conditionMessage(error), call. = FALSE)
     }
   )
+  description_column <- if (collection_name == "GO") "TERM" else "Description"
+  if (!all(c(description_column, "P.DE", "FDR") %in% names(result))) {
+    stop(collection_name, " enrichment returned an unexpected table schema.", call. = FALSE)
+  }
+  result$Description <- result[[description_column]]
+  result$pathway_id <- rownames(result)
+  result$collection <- rep(collection_name, nrow(result))
+  result
 }
 
 go_results <- run_gometh("GO")
 kegg_results <- run_gometh("KEGG")
 
-if (nrow(go_results) > 0L) {
-  go_results$collection <- "GO"
-}
-if (nrow(kegg_results) > 0L) {
-  kegg_results$collection <- "KEGG"
-}
 combine_results <- function(first, second) {
   columns <- union(names(first), names(second))
   for (column in setdiff(columns, names(first))) {
-    first[[column]] <- NA
+    first[[column]] <- rep(NA, nrow(first))
   }
   for (column in setdiff(columns, names(second))) {
-    second[[column]] <- NA
+    second[[column]] <- rep(NA, nrow(second))
   }
   rbind(first[, columns, drop = FALSE], second[, columns, drop = FALSE])
 }
@@ -91,16 +87,18 @@ summary <- data.frame(
 utils::write.table(summary, file.path(results_dir, "enrichment_summary.tsv"),
                    sep = "\t", quote = FALSE, row.names = FALSE)
 
-plot_data <- enrichment[!is.na(enrichment$Pathway), , drop = FALSE]
-plot_data <- plot_data[order(plot_data$FDR, plot_data$P.DE), ]
+plot_data <- enrichment[!is.na(enrichment$Description) & !is.na(enrichment$FDR), , drop = FALSE]
 plot_data <- head(plot_data, 10L)
-pdf(file.path(results_dir, "enrichment_top_pathways.pdf"), width = 9, height = 6)
-if (nrow(plot_data) > 0L && "Pathway" %in% names(plot_data)) {
-  labels <- plot_data$Pathway
-  labels <- abbreviate(labels, minlength = 24)
+pdf(file.path(results_dir, "enrichment_top_pathways.pdf"), width = 9, height = 7)
+if (nrow(plot_data) > 0L) {
+  plot_data <- plot_data[rev(seq_len(nrow(plot_data))), , drop = FALSE]
+  labels <- vapply(plot_data$Description, function(description) {
+    paste(strwrap(description, width = 36), collapse = "\n")
+  }, character(1))
+  par(mar = c(5, 16, 4, 2))
   barplot(-log10(pmax(plot_data$FDR, .Machine$double.xmin)),
-          names.arg = labels, las = 2, cex.names = 0.7,
-          ylab = "-log10(FDR)", main = "Top exploratory methylation-gene-set results")
+          names.arg = labels, horiz = TRUE, las = 1, cex.names = 0.75,
+          xlab = "-log10(FDR)", main = "Top exploratory methylation-gene-set results")
 } else {
   plot.new()
   title("No enrichment rows were returned")

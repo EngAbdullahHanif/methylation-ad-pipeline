@@ -1,21 +1,21 @@
 pc	variable	p_value	note	FDR
-PC1	diagnosis	NA	constant	NA
-PC1	sex	NA	constant	NA
-PC1	batch	NA	constant	NA
-PC1	bisulfite_batch	NA	constant	NA
-PC2	diagnosis	NA	constant	NA
-PC2	sex	NA	constant	NA
-PC2	batch	NA	constant	NA
-PC2	bisulfite_batch	NA	constant	NA
-PC3	diagnosis	NA	constant	NA
-PC3	sex	NA	constant	NA
-PC3	batch	NA	constant	NA
-PC3	bisulfite_batch	NA	constant	NA
-PC4	diagnosis	NA	constant	NA
-PC4	sex	NA	constant	NA
-PC4	batch	NA	constant	NA
-PC4	bisulfite_batch	NA	constant	NA
-PC5	diagnosis	NA	constant	NA
-PC5	sex	NA	constant	NA
-PC5	batch	NA	constant	NA
-PC5	bisulfite_batch	NA	constant	NA
+PC1	diagnosis	0.70506816150285	descriptive association	0.7834090683365
+PC1	sex	0.768039223443616	descriptive association	0.808462340466964
+PC1	batch	0.371135928035439	descriptive association	0.67479259642807
+PC1	bisulfite_batch	0.371135928035439	descriptive association	0.67479259642807
+PC2	diagnosis	0.929110359906947	descriptive association	0.929110359906947
+PC2	sex	0.165509030519759	descriptive association	0.472882944342169
+PC2	batch	0.0465394563196103	descriptive association	0.223616633195675
+PC2	bisulfite_batch	0.0465394563196102	descriptive association	0.223616633195675
+PC3	diagnosis	0.0627954404061237	descriptive association	0.223616633195675
+PC3	sex	0.547192377180442	descriptive association	0.78170339597206
+PC3	batch	0.00512424565904948	descriptive association	0.0512424565904948
+PC3	bisulfite_batch	0.00512424565904945	descriptive association	0.0512424565904948
+PC4	diagnosis	0.0670849899587024	descriptive association	0.223616633195675
+PC4	sex	0.336344982100553	descriptive association	0.67479259642807
+PC4	batch	0.477169169074294	descriptive association	0.734106413960453
+PC4	bisulfite_batch	0.477169169074295	descriptive association	0.734106413960453
+PC5	diagnosis	0.649013788770947	descriptive association	0.7834090683365
+PC5	sex	0.220212049778797	descriptive association	0.550530124446992
+PC5	batch	0.667185687300468	descriptive association	0.7834090683365
+PC5	bisulfite_batch	0.667185687300468	descriptive association	0.7834090683365
