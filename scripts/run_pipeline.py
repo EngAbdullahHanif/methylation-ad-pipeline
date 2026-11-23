@@ -60,8 +60,14 @@ STAGES = {
         "previous": "differential", "command": ("Rscript", "scripts/06_enrichment.R"),
         "outputs": results("enrichment_results.rds enrichment_results.tsv enrichment_summary.tsv enrichment_top_pathways.pdf"),
     },
+    "leave-one-batch-out": {
+        "previous": "differential",
+        "command": ("Rscript", "scripts/04_leave_one_batch_out.R"),
+        "outputs": results("leave_one_batch_out_summary.tsv leave_one_batch_out_effects.tsv leave_one_batch_out.pdf"),
+    },
     "report": {
         "previous": "enrichment",
+        "requires": ("leave-one-batch-out",),
         "command": ("Rscript", "-e", 'rmarkdown::render("report/analysis_report.Rmd", output_dir = "report")'),
         "sources": ("report/analysis_report.Rmd",),
         "outputs": ("report/analysis_report.html",),
@@ -87,17 +93,20 @@ def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def signature(stage, upstream):
+def signature(stage, stamps):
     sources = stage.get("sources", ()) + R_ENV
     if stage["command"][1].endswith(".R"):
         sources += (stage["command"][1],)
-    return {
+    state = {
         "version": 1,
         "command": list(stage["command"]),
         "sources": {path: digest(path) for path in sources},
         "inputs": fingerprints(stage.get("inputs", ())),
-        "upstream": upstream,
+        "upstream": stamps.get(stage.get("previous")),
     }
+    if stage.get("requires"):
+        state["requires"] = {name: stamps[name] for name in stage["requires"]}
+    return state
 
 
 def stamp_key(stamp):
@@ -120,12 +129,22 @@ def run_stage(name, command):
         raise subprocess.CalledProcessError(process.returncode, command)
 
 
+def dependencies(stage):
+    previous = (stage["previous"],) if "previous" in stage else ()
+    return previous + stage.get("requires", ())
+
+
 def stage_order(target):
     order = []
-    while target:
-        order.append(target)
-        target = STAGES[target].get("previous")
-    return list(reversed(order))
+
+    def visit(name):
+        if name not in order:
+            for dependency in dependencies(STAGES[name]):
+                visit(dependency)
+            order.append(name)
+
+    visit(target)
+    return order
 
 
 def main():
@@ -143,13 +162,15 @@ def main():
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             parser.exit(1, "Another workflow run is active in this checkout.\n")
-        upstream = None
-        forced = False
+        stamps = {}
+        forced_stages = set()
         for name in order:
             stage = STAGES[name]
             path = CACHE / f"{name}.json"
-            forced = forced or args.force_from == name
-            current = {"signature": signature(stage, upstream), "outputs": fingerprints(stage["outputs"])}
+            forced = args.force_from == name or any(dep in forced_stages for dep in dependencies(stage))
+            if forced:
+                forced_stages.add(name)
+            current = {"signature": signature(stage, stamps), "outputs": fingerprints(stage["outputs"])}
             try:
                 cached = json.loads(path.read_text()) if path.exists() else None
             except json.JSONDecodeError:
@@ -160,14 +181,14 @@ def main():
                 path.unlink(missing_ok=True)
                 print(f"{name}: running", flush=True)
                 run_stage(name, stage["command"])
-                current = {"signature": signature(stage, upstream), "outputs": fingerprints(stage["outputs"])}
+                current = {"signature": signature(stage, stamps), "outputs": fingerprints(stage["outputs"])}
                 missing = [pattern for pattern, files in current["outputs"].items() if not files]
                 if missing:
                     parser.exit(1, f"{name} did not create expected outputs: {', '.join(missing)}\n")
                 temporary = path.with_suffix(".tmp")
                 temporary.write_text(json.dumps(current, sort_keys=True) + "\n")
                 temporary.replace(path)
-            upstream = stamp_key(current)
+            stamps[name] = stamp_key(current)
 
 
 if __name__ == "__main__":

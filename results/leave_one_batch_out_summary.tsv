@@ -1,0 +1,5 @@
+omitted_batch	n_samples	n_removed	n_control	n_ad	n_shared_batches	design_columns	design_rank	residual_df	status	m_effect_pearson_r	n_leading_same_direction	leading_median_abs_delta_beta_change	n_primary_hits_same_direction	n_primary_hits_passing_both_cutoffs	genomewide_fdr_005
+none	29	0	18	11	3	15	15	14	estimable	1	100	2.4980018054066e-16	4	4	4
+Batch_3	26	3	17	9	2	14	14	12	estimable	0.902902809616437	100	0.00724945812110867	4	0	0
+Batch_4	27	2	17	10	2	14	14	13	estimable	0.958814263287849	100	0.006961601614824	4	0	0
+Batch_5	24	5	16	8	2	14	14	10	estimable	0.68594769342409	100	0.0127928959739844	4	0	2

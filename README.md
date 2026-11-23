@@ -44,6 +44,10 @@ The report includes the paired estimates for the leading probes and summarizes a
 
 The direct within-batch diagnosis contrast comes from the shared batches. The two analyses share those samples, so their agreement measures sensitivity to cohort restriction. Elevated genomic inflation warrants caution when interpreting the p-values.
 
+The leave-one-batch-out analysis omits batches 3, 4, and 5 one at a time from the full cohort. It keeps the primary covariates, ranks candidates using the full fit, and recalculates genome-wide M-value FDR for each omission. The [summary](results/leave_one_batch_out_summary.tsv) reports design rank and effect stability. The [probe estimates](results/leave_one_batch_out_effects.tsv) include ordinary 95% beta-scale confidence intervals, and the [plot](results/leave_one_batch_out.pdf) shows the four leading probes.
+
+All three refits were full rank, with 10 to 13 residual degrees of freedom. The top 100 probes kept their effect directions in every refit. Zero of the four primary hits met both discovery cutoffs after any omission. Omitting batch 5 had the largest overall impact, with a genome-wide M-value effect correlation of **r = 0.686** and a median absolute change of **1.28 percentage points** among the top 100 adjusted beta estimates.
+
 The independent GSE59685 frontal-cortex comparison evaluated 47 of the 100 masked discovery candidates. Effects agreed in direction for 43 of 47 and correlated at **r = 0.780**. Median absolute adjusted effects were **13.2 percentage points** in discovery and **2.2** in the independent cohort. Zero candidates had a same-direction replication FDR below 0.05. [Replication analysis](docs/replication.md)
 
 ## Repository structure
@@ -87,6 +91,8 @@ The runner caches completed stages in `.workflow-cache`. It checks stage source 
 The runner records elapsed seconds and peak resident memory for every executed stage in `.workflow-cache/benchmarks.tsv`. The 29-sample run with the cached raw archive is recorded in [`results/memory_benchmark.tsv`](results/memory_benchmark.tsv). Peak resident memory measures the stage process and is distinct from R's heap size.
 
 For the independent analysis, run `bash run_all.sh --target replication`. The first run downloads the 1.9 GB GSE59685 beta matrix and streams the candidate rows. Cohort selection, models, and results are documented in the [replication analysis](docs/replication.md).
+
+Run `bash run_all.sh --target leave-one-batch-out` to regenerate the batch-omission results from the cached differential run. The default HTML report also includes this analysis.
 
 To start the interactive viewer after the workflow has run:
 

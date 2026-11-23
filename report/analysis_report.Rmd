@@ -152,6 +152,21 @@ knitr::kable(sensitivity, digits = 4)
 knitr::kable(head(sensitivity_top, 10), digits = 4)
 ```
 
+# Leave-one-batch-out analysis
+
+Each refit starts with the full QC-passing cohort and omits one array batch that contains both diagnosis groups. It keeps the primary covariates and the same masked probe set. The full-cohort ranking fixes the leading 100 probes for comparison, and retention counts refer to the primary hits within that set. FDR uses the limma M-value tests across the masked probe set in each refit. The plot shows adjusted beta-scale estimates and ordinary 95% confidence intervals for the four highest-ranked primary probes. The fits share samples, so the plot describes the stability of the estimates under batch omission.
+
+```{r leave-one-batch-out}
+holdout <- read.delim(file.path(results_dir, "leave_one_batch_out_summary.tsv"))
+knitr::kable(holdout[, c("omitted_batch", "n_samples", "n_shared_batches", "design_columns", "design_rank",
+                         "residual_df", "status")])
+knitr::kable(holdout[, c("omitted_batch", "m_effect_pearson_r", "n_leading_same_direction",
+                         "leading_median_abs_delta_beta_change", "n_primary_hits_same_direction",
+                         "n_primary_hits_passing_both_cutoffs", "genomewide_fdr_005")], digits = 4)
+```
+
+![Adjusted effects for the four leading probes after omitting each shared batch](../results/leave_one_batch_out.pdf)
+
 # DMRcate
 
 DMRcate uses the primary covariate design and EPICv1 annotation. Region calling uses FDR-based smoothing over a 1000 bp window and requires a minimum of two CpGs.
