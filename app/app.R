@@ -6,25 +6,35 @@ library(plotly)
 results_dir <- file.path("..", "results")
 metadata_dir <- file.path("..", "data", "metadata")
 
-read_required <- function(path, reader = read.delim) {
+read_required <- function(path, columns) {
   if (!file.exists(path)) {
     stop("Missing app input: ", path, ". Run the pipeline first.")
   }
-  reader(path, check.names = FALSE)
+  data <- read.delim(path, check.names = FALSE)
+  missing_columns <- setdiff(columns, names(data))
+  if (length(missing_columns)) {
+    stop("Missing columns in ", path, ": ", paste(missing_columns, collapse = ", "),
+         ". Run the pipeline to regenerate this input.")
+  }
+  data
 }
 
-sample_sheet <- read_required(file.path(metadata_dir, "sample_sheet_clean.tsv"))
-pca_scores <- read_required(file.path(results_dir, "pca_scores.tsv"))
-differential <- read_required(file.path(results_dir, "differential_top.tsv"))
-enrichment <- read_required(file.path(results_dir, "enrichment_results.tsv"))
-qc_summary <- read_required(file.path(results_dir, "qc_summary.tsv"))
-sex_check <- read_required(file.path(results_dir, "sex_check.tsv"))
+sample_sheet <- read_required(file.path(metadata_dir, "sample_sheet_clean.tsv"),
+                              c("sample_id", "diagnosis"))
+pca_scores <- read_required(file.path(results_dir, "pca_scores.tsv"),
+                           c("sample_id", "PC1", "PC2", "diagnosis", "sex", "batch", "bisulfite_batch"))
+differential <- read_required(file.path(results_dir, "differential_top.tsv"),
+                             c("CpG", "delta_beta", "P.Value", "adj.P.Val"))
+enrichment <- read_required(file.path(results_dir, "enrichment_results.tsv"),
+                           c("Description", "FDR", "collection", "pathway_id"))
+qc_summary <- read_required(file.path(results_dir, "qc_summary.tsv"), "qc_status")
+sex_check <- read_required(file.path(results_dir, "sex_check.tsv"), "sex_mismatch")
 
 beta_file <- file.path(results_dir, "beta_filtered.rds")
 beta_values <- if (file.exists(beta_file)) readRDS(beta_file) else NULL
 
 pca_scores$diagnosis <- as.character(pca_scores$diagnosis)
-enrichment <- enrichment[!is.na(enrichment$Pathway) & !is.na(enrichment$FDR), , drop = FALSE]
+enrichment <- enrichment[!is.na(enrichment$Description) & !is.na(enrichment$FDR), , drop = FALSE]
 
 make_pca_plot <- function(data, colour_by) {
   plot_ly(data, x = ~PC1, y = ~PC2, type = "scatter", mode = "markers+text",
@@ -77,6 +87,7 @@ ui <- navbarPage(
   tabPanel("Differential results",
            sidebarLayout(
              sidebarPanel(
+               p("Filters apply to the top 100 probes ranked by limma p-value."),
                sliderInput("fdr_cutoff", "Maximum FDR", min = 0, max = 1, value = 0.2, step = 0.01),
                sliderInput("delta_cutoff", "Minimum absolute delta-beta", min = 0, max = 1, value = 0, step = 0.01),
                downloadButton("download_diff", "Download filtered results")
@@ -99,8 +110,9 @@ server <- function(input, output, session) {
   })
 
   output$overview_counts <- renderTable({
-    as.data.frame(table(sample_sheet$diagnosis), responseName = "samples")
-  }, colnames = c("diagnosis", "samples"))
+    as.data.frame(table(sample_sheet$diagnosis), responseName = "samples") |>
+      setNames(c("diagnosis", "samples"))
+  })
 
   output$overview_qc <- renderTable({
     data.frame(
@@ -142,9 +154,10 @@ server <- function(input, output, session) {
   })
 
   output$enrichment_plot <- renderPlotly({
+    validate(need(nrow(enrichment) > 0L, "No enrichment results are available."))
     top <- head(enrichment[order(enrichment$FDR), ], 15)
     plot_ly(top, x = ~FDR, y = ~reorder(Description, FDR), color = ~collection,
-            type = "bar", orientation = "h", hovertext = ~TERM, hoverinfo = "text+x") |>
+            type = "bar", orientation = "h", text = ~pathway_id, hoverinfo = "text+x") |>
       layout(xaxis = list(title = "FDR"), yaxis = list(title = "Pathway"), barmode = "group")
   })
 

@@ -34,7 +34,7 @@ Differential methylation is tested with limma on M-values. Beta-scale delta valu
 
 The executed analysis contains 10 samples: 5 Alzheimer's disease samples and 5 controls. All samples passed the mean detection p-value threshold, and no sex mismatches were flagged.
 
-Filtering retained 815,651 probes, and no missing beta values were observed after filtering. The exploratory limma analysis identified 4 probes meeting FDR < 0.05 and absolute delta-beta >= 0.05. The genomic inflation factor was 0.625, and DMRcate returned one exploratory region.
+Filtering retained 815,651 probes, and no missing beta values were observed after filtering. The exploratory limma analysis identified 4 probes meeting FDR < 0.05 and absolute delta-beta >= 0.05. The genomic inflation factor was 1.517, and DMRcate returned one exploratory region.
 
 These values are descriptive outputs of a small, confounded subset. They should not be interpreted as replicated disease associations.
 
@@ -58,7 +58,7 @@ run_all.sh                                 Command-line workflow
 
 - macOS or Linux
 - R 4.5.2 or a compatible R version
-- Internet access for GEO data and package installation
+- Internet access for GEO data, KEGG annotations, and package installation
 - Approximately 16 GB RAM for the selected raw-data subset
 - Pandoc 2.8 or newer for HTML report rendering
 
@@ -79,7 +79,9 @@ To start the interactive viewer after the workflow has run:
 shiny::runApp("app")
 ```
 
-The app reads precomputed results and does not process raw IDAT files.
+The app reads precomputed results. Its differential table and filters use the 100 probes with the smallest limma p-values. The probe viewer uses the locally generated beta matrix when available.
+
+To check the saved outputs, render the report in a temporary directory, and exercise the Shiny server, run `Rscript tests/smoke_workflow.R` from the repository root.
 
 ## Limitations and future work
 

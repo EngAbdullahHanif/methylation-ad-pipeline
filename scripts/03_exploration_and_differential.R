@@ -21,8 +21,12 @@ methyl_set <- readRDS(file.path(results_dir, "methyl_set_filtered.rds"))
 beta <- readRDS(file.path(results_dir, "beta_filtered.rds"))
 
 beta_sample_ids <- sub("_.*$", "", colnames(beta))
+if (anyDuplicated(beta_sample_ids) || anyDuplicated(metadata$sample_id) ||
+    !all(beta_sample_ids %in% metadata$sample_id) ||
+    !identical(colnames(beta), colnames(methyl_set))) {
+  stop("Expected one metadata row per beta sample and matching beta and methylation columns.")
+}
 metadata <- metadata[match(beta_sample_ids, metadata$sample_id), , drop = FALSE]
-metadata$sample_id <- beta_sample_ids
 rownames(metadata) <- metadata$sample_id
 
 metadata$diagnosis <- factor(metadata$diagnosis, levels = c("Control", "AD"))
@@ -42,11 +46,11 @@ variable_summary <- data.frame(
 utils::write.table(variable_summary, file.path(results_dir, "m3_variable_summary.tsv"),
                    sep = "\t", quote = FALSE, row.names = FALSE)
 
-confounded <- with(metadata, any(table(diagnosis, batch) == 0L))
+confounded <- with(metadata, all(colSums(table(diagnosis, batch) > 0L) == 1L))
 model_note <- if (length(unique(metadata$age_raw)) == 1L && confounded) {
   "Primary model is diagnosis-only: age is constant and diagnosis is confounded with batch in this 10-sample subset; adding batch would make the diagnosis effect non-identifiable."
 } else {
-  "Primary model includes diagnosis and estimable covariates after checking rank."
+  "Primary model is diagnosis-only; no covariates are included."
 }
 writeLines(model_note, file.path(results_dir, "m3_model_note.txt"))
 
@@ -55,11 +59,11 @@ probe_variance <- apply(beta, 1L, var, na.rm = TRUE)
 top_probes <- order(probe_variance, decreasing = TRUE)[seq_len(min(10000L, nrow(beta)))]
 pca <- prcomp(t(beta[top_probes, , drop = FALSE]), center = TRUE, scale. = TRUE)
 pca_scores <- data.frame(
-  sample_id = rownames(pca$x),
+  sample_id = metadata$sample_id,
   PC1 = pca$x[, "PC1"],
   PC2 = pca$x[, "PC2"],
   PC3 = pca$x[, "PC3"],
-  metadata[rownames(pca$x), c("diagnosis", "sex", "batch", "bisulfite_batch"), drop = FALSE],
+  metadata[, c("diagnosis", "sex", "batch", "bisulfite_batch"), drop = FALSE],
   row.names = NULL,
   stringsAsFactors = FALSE
 )
@@ -94,7 +98,7 @@ pc_tests <- do.call(rbind, lapply(seq_len(min(5L, ncol(pca$x))), function(index)
   pc_values <- pca$x[, index]
   variables <- c("diagnosis", "sex", "batch", "bisulfite_batch")
   do.call(rbind, lapply(variables, function(variable) {
-    values <- metadata[rownames(pca$x), variable]
+    values <- pca_scores[[variable]]
     if (length(unique(values)) < 2L) {
       return(data.frame(pc = pc_name, variable = variable, p_value = NA_real_, note = "constant", stringsAsFactors = FALSE))
     }
@@ -123,6 +127,10 @@ results <- results[, c("CpG", "gene", "logFC", "delta_beta", "AveExpr", "t", "P.
 utils::write.table(results, file.path(results_dir, "differential_methylation.tsv"),
                    sep = "\t", quote = FALSE, row.names = FALSE)
 saveRDS(results, file.path(results_dir, "differential_methylation.rds"))
+top_results <- head(results[order(results$P.Value, -abs(results$delta_beta),
+                                  na.last = NA), ], 100L)
+utils::write.table(top_results, file.path(results_dir, "differential_top.tsv"),
+                   sep = "\t", quote = FALSE, row.names = FALSE)
 
 pdf(file.path(results_dir, "differential_volcano.pdf"), width = 7, height = 6)
 plot(results$delta_beta, -log10(results$P.Value), pch = 19, cex = 0.35,
@@ -134,7 +142,8 @@ pdf(file.path(results_dir, "differential_qq.pdf"), width = 6, height = 6)
 limma::qqt(results$t, df = fit$df.prior + fit$df.residual, pch = 19, cex = 0.35)
 dev.off()
 
-lambda <- median(qchisq(1 - results$P.Value, df = 1, lower.tail = FALSE), na.rm = TRUE) / qchisq(0.5, df = 1)
+lambda <- median(qchisq(results$P.Value, df = 1, lower.tail = FALSE), na.rm = TRUE) /
+  qchisq(0.5, df = 1)
 significant_count <- sum(results$adj.P.Val < 0.05 & abs(results$delta_beta) >= 0.05, na.rm = TRUE)
 differential_summary <- data.frame(
   model = "~ diagnosis",
