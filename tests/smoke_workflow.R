@@ -3,6 +3,64 @@ metadata <- read.delim("data/metadata/sample_sheet_clean.tsv")
 qc <- read.delim("results/qc_summary.tsv")
 pairs <- read.delim("results/batch_overlap.tsv")
 design <- read.delim("results/model_design.tsv")
+pathology <- read.delim("results/neuropathology_summary.tsv")
+pathology_batches <- read.delim("results/neuropathology_score_by_batch.tsv")
+regional <- read.delim("results/regional_specificity_summary.tsv")
+donor_pairs <- read.delim("results/regional_specificity_pairs.tsv")
+stopifnot(pathology$n_samples == sum(pathology_batches$n_b2 + pathology_batches$n_b3),
+          pathology$n_b2 == sum(pathology_batches$n_b2), pathology$n_b3 == sum(pathology_batches$n_b3),
+          pathology$n_batches_with_both_scores == sum(pathology_batches$n_b2 > 0 & pathology_batches$n_b3 > 0),
+          pathology$n_samples <= pathology$n_qc_pass, pathology$n_qc_pass <= pathology$n_eligible_arrays,
+          pathology$n_intermediate_diagnoses > 0L, pathology$residual_df == pathology$n_samples - pathology$design_rank,
+          !anyDuplicated(donor_pairs$donor_id), !anyDuplicated(donor_pairs$sample_id_mfg),
+          !anyDuplicated(donor_pairs$sample_id_dg), !any(donor_pairs$sample_id_dg %in% donor_pairs$sample_id_mfg),
+          all(donor_pairs$diagnosis_mfg == donor_pairs$diagnosis_dg), all(donor_pairs$sex_mfg == donor_pairs$sex_dg),
+          regional$n_pairs == nrow(donor_pairs), regional$n_control_pairs == sum(donor_pairs$diagnosis_mfg == "Control"),
+          regional$n_ad_pairs == sum(donor_pairs$diagnosis_mfg == "AD"),
+          regional$residual_df == regional$n_pairs - regional$design_rank,
+          isTRUE(all.equal(sum(donor_pairs$diagnosis_information_share), 1)),
+          isTRUE(all.equal(regional$max_donor_diagnosis_information_share, max(donor_pairs$diagnosis_information_share))))
+extension_summaries <- list(neuropathology = pathology, regional_specificity = regional)
+for (name in names(extension_summaries)) {
+  info <- extension_summaries[[name]]
+  candidates <- read.delim(file.path("results", paste0(name, "_top.tsv")))
+  stopifnot(info$design_rank == info$design_columns, info$residual_df > 0,
+            nrow(candidates) == min(100L, info$n_probes), !anyDuplicated(candidates$CpG),
+            !is.unsorted(candidates$p_value), all(candidates$ci_95_low <= candidates$delta_beta),
+            all(candidates$delta_beta <= candidates$ci_95_high),
+            file.info(file.path("results", paste0(name, ".pdf")))$size > 0)
+}
+
+# Refit the leading beta-scale estimates independently when local assays are available.
+pathology_dir <- "results/extensions/pathology"
+dentate_dir <- "results/extensions/dentate"
+if (file.exists(file.path(pathology_dir, "beta_filtered.rds")) &&
+    file.exists(file.path(dentate_dir, "beta_filtered.rds"))) {
+  pathology_metadata <- read.delim(file.path(pathology_dir, "sample_sheet_clean.tsv"))
+  pathology_beta <- readRDS(file.path(pathology_dir, "beta_filtered.rds"))
+  dentate_beta <- readRDS(file.path(dentate_dir, "beta_filtered.rds"))
+  stopifnot(regional$n_probes == length(intersect(rownames(pathology_beta), rownames(dentate_beta))))
+  sample_ids <- function(beta) sub("_.*$", "", colnames(beta))
+  pathology_metadata <- subset(pathology_metadata, !is.na(niaa_b))
+  top_pathology <- read.delim("results/neuropathology_top.tsv")[1L, ]
+  pathology_metadata$beta <- as.numeric(pathology_beta[top_pathology$CpG,
+                                                       match(pathology_metadata$sample_id, sample_ids(pathology_beta))])
+  expected <- coef(lm(beta ~ niaa_b + batch + sex + proportion_neurons, pathology_metadata))["niaa_b"]
+  stopifnot(isTRUE(all.equal(unname(expected), top_pathology$delta_beta)))
+
+  top_regional <- read.delim("results/regional_specificity_top.tsv")[1L, ]
+  batches <- sort(unique(c(donor_pairs$batch_dg, donor_pairs$batch_mfg)))
+  batch_differences <- outer(donor_pairs$batch_dg, batches, "==") - outer(donor_pairs$batch_mfg, batches, "==")
+  covariates <- model.matrix(~ sex_mfg + I(proportion_neurons_dg - proportion_neurons_mfg), donor_pairs)
+  paired_design <- cbind(covariates, batch_differences, diagnosisAD = donor_pairs$diagnosis_mfg == "AD")
+  observed <- dentate_beta[top_regional$CpG, match(donor_pairs$sample_id_dg, sample_ids(dentate_beta))] -
+    pathology_beta[top_regional$CpG, match(donor_pairs$sample_id_mfg, sample_ids(pathology_beta))]
+  expected <- lm.fit(paired_design, observed)$coefficients["diagnosisAD"]
+  stopifnot(qr(paired_design)$rank == regional$design_rank,
+            isTRUE(all.equal(unname(expected), top_regional$delta_beta)))
+  rm(pathology_beta, dentate_beta)
+}
+
 stopifnot(nrow(qc) == 29L, sum(qc$diagnosis == "Control") == 18L, sum(qc$diagnosis == "AD") == 11L,
           setequal(metadata$sample_id, qc$sample_id[qc$qc_status == "pass"]),
           all(metadata$age_raw == "90+"), all(is.na(metadata$age_numeric)),

@@ -12,6 +12,11 @@ if (!requireNamespace("minfi", quietly = TRUE) ||
 
 project_dir <- normalizePath(".", mustWork = TRUE)
 results_dir <- file.path(project_dir, "results")
+args <- commandArgs(trailingOnly = TRUE)
+if (length(args) > 1L || (length(args) && !args %in% c("pathology", "dentate"))) {
+  stop("Expected no argument, 'pathology', or 'dentate'.")
+}
+if (length(args)) results_dir <- file.path(results_dir, "extensions", args)
 dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
 
 rg_set <- readRDS(file.path(results_dir, "rg_set_raw.rds"))
@@ -136,8 +141,10 @@ m2_summary <- data.frame(
 utils::write.table(m2_summary, file.path(results_dir, "m2_summary.tsv"),
                    sep = "\t", quote = FALSE, row.names = FALSE)
 
-saveRDS(noob_set, file.path(results_dir, "methyl_set_noob.rds"))
-saveRDS(common_probes[before_mask], file.path(results_dir, "probe_universe_before_mask.rds"))
+if (!length(args)) {
+  saveRDS(noob_set, file.path(results_dir, "methyl_set_noob.rds"))
+  saveRDS(common_probes[before_mask], file.path(results_dir, "probe_universe_before_mask.rds"))
+}
 saveRDS(filtered_set, file.path(results_dir, "methyl_set_filtered.rds"))
 saveRDS(filtered_beta, file.path(results_dir, "beta_filtered.rds"))
 

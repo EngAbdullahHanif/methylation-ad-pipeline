@@ -32,6 +32,14 @@ __pycache__/
 !/results/leave_one_batch_out_summary.tsv
 !/results/leave_one_batch_out_effects.tsv
 !/results/leave_one_batch_out.pdf
+!/results/neuropathology_summary.tsv
+!/results/neuropathology_top.tsv
+!/results/neuropathology_score_by_batch.tsv
+!/results/neuropathology.pdf
+!/results/regional_specificity_summary.tsv
+!/results/regional_specificity_top.tsv
+!/results/regional_specificity_pairs.tsv
+!/results/regional_specificity.pdf
 /results/rg_set_raw.rds
 /results/detection_p.rds
 /results/differential_methylation.tsv

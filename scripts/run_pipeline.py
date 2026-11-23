@@ -25,6 +25,28 @@ def results(names):
     return tuple(f"results/{name}" for name in names.split())
 
 
+def extension_arrays(cohort):
+    def artifacts(names):
+        return tuple(f"results/extensions/{cohort}/{name}" for name in names.split())
+
+    return {
+        f"{cohort}-qc": {
+            "previous": "download",
+            "command": ("Rscript", "scripts/01_import_and_qc.R", cohort),
+            "inputs": (GEO_MATRIX,),
+            "outputs": artifacts("sample_sheet_clean.tsv rg_set_raw.rds detection_p.rds qc_summary.rds sex_check.rds "
+                                 "qc_summary.tsv sex_check.tsv qc_mean_detection_p.pdf qc_intensity.pdf"),
+        },
+        f"{cohort}-normalization": {
+            "previous": f"{cohort}-qc",
+            "command": ("Rscript", "scripts/02_normalisation.R", cohort),
+            "inputs": (EPIC_MASK,),
+            "outputs": artifacts("methyl_set_filtered.rds beta_filtered.rds normalisation_summary.tsv "
+                                 "normalisation_beta_density.pdf probe_filter_counts.tsv m2_summary.tsv"),
+        },
+    }
+
+
 STAGES = {
     "download": {
         "command": ("Rscript", "scripts/00_download_data.R"),
@@ -65,9 +87,26 @@ STAGES = {
         "command": ("Rscript", "scripts/04_leave_one_batch_out.R"),
         "outputs": results("leave_one_batch_out_summary.tsv leave_one_batch_out_effects.tsv leave_one_batch_out.pdf"),
     },
+    **extension_arrays("pathology"),
+    **extension_arrays("dentate"),
+    "neuropathology": {
+        "previous": "pathology-normalization",
+        "command": ("Rscript", "scripts/07_neuropathology.R"),
+        "sources": ("scripts/extension_models.R",),
+        "outputs": results("neuropathology_summary.tsv neuropathology_top.tsv neuropathology_score_by_batch.tsv "
+                           "neuropathology.pdf extensions/pathology/site_statistics.rds"),
+    },
+    "regional-specificity": {
+        "previous": "dentate-normalization",
+        "requires": ("pathology-normalization",),
+        "command": ("Rscript", "scripts/08_regional_specificity.R"),
+        "sources": ("scripts/extension_models.R",),
+        "outputs": results("regional_specificity_summary.tsv regional_specificity_top.tsv regional_specificity_pairs.tsv "
+                           "regional_specificity.pdf extensions/regional_site_statistics.rds"),
+    },
     "report": {
         "previous": "enrichment",
-        "requires": ("leave-one-batch-out",),
+        "requires": ("leave-one-batch-out", "neuropathology", "regional-specificity"),
         "command": ("Rscript", "-e", 'rmarkdown::render("report/analysis_report.Rmd", output_dir = "report")'),
         "sources": ("report/analysis_report.Rmd",),
         "outputs": ("report/analysis_report.html",),
