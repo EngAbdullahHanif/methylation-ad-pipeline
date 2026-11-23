@@ -1,0 +1,2 @@
+region	contrast	model	n_eligible_arrays	n_qc_pass	n_samples	n_b2	n_b3	n_batches_with_both_scores	n_intermediate_diagnoses	design_columns	design_rank	residual_df	n_probes	n_fdr_005	n_fdr_005_abs_delta_beta_005	genomic_inflation_factor
+middle frontal gyrus	NIA-AA B3 minus B2	~niaa_b + batch + sex + proportion_neurons	41	41	41	16	25	7	12	18	18	23	745262	0	0	1.19695661892566

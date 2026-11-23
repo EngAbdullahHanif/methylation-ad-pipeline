@@ -11,13 +11,20 @@ if (!requireNamespace("GEOquery", quietly = TRUE) ||
 }
 
 project_dir <- normalizePath(".", mustWork = TRUE)
+args <- commandArgs(trailingOnly = TRUE)
+if (length(args) > 1L || (length(args) && !args %in% c("pathology", "dentate"))) {
+  stop("Expected no argument, 'pathology', or 'dentate'.")
+}
+extension <- length(args) > 0L
 raw_dir <- file.path(project_dir, "data", "raw", "GSE212682", "idats")
 metadata_dir <- file.path(project_dir, "data", "metadata")
 results_dir <- file.path(project_dir, "results")
+if (extension) results_dir <- file.path(results_dir, "extensions", args)
+sample_sheet_dir <- if (extension) results_dir else metadata_dir
 dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
 
 accession <- "GSE212682"
-region_to_keep <- "middle frontal gyrus"
+region_to_keep <- if (identical(args, "dentate")) "dentate gyrus" else "middle frontal gyrus"
 
 matrix_file <- file.path(metadata_dir, paste0(accession, "_series_matrix.txt.gz"))
 gse <- if (file.exists(matrix_file)) {
@@ -67,6 +74,11 @@ sample_sheet$diagnosis <- ifelse(
   ifelse(sample_sheet$conf_diag == "2", "AD", NA_character_)
 )
 sample_sheet$age_numeric <- suppressWarnings(as.numeric(sample_sheet$age_raw))
+if (extension) {
+  sample_sheet$donor_id <- ifelse(grepl("^participant_[0-9]+", sample_sheet$title),
+                                 sub("^participant_([0-9]+).*", "\\1", sample_sheet$title), NA_character_)
+  sample_sheet$niaa_b <- as.integer(find_characteristic("niaaabscore"))
+}
 
 idat_files <- list.files(raw_dir, pattern = "\\.idat\\.gz$", full.names = TRUE,
                          ignore.case = TRUE)
@@ -86,14 +98,16 @@ green_files$Basename <- file.path("data", "raw", accession, "idats", green_files
 sample_sheet <- merge(sample_sheet, green_files[, c(
   "sample_id", "sentrix_id", "sentrix_position", "Basename"
 )], by = "sample_id", all.x = TRUE, sort = FALSE)
-sample_sheet <- sample_sheet[
-  sample_sheet$region %in% region_to_keep &
-    sample_sheet$diagnosis %in% c("Control", "AD"),
-]
+eligible <- sample_sheet$region %in% region_to_keep
+if (!extension) eligible <- eligible & sample_sheet$diagnosis %in% c("Control", "AD")
+sample_sheet <- sample_sheet[eligible, ]
+if (extension && (anyNA(sample_sheet$donor_id) || anyDuplicated(sample_sheet$donor_id))) {
+  stop("Expected one uniquely identified donor array in the selected region.")
+}
 sample_sheet <- sample_sheet[order(sample_sheet$diagnosis, sample_sheet$sample_id), ]
 rownames(sample_sheet) <- NULL
 
-if (length(unique(sample_sheet$diagnosis)) != 2L) {
+if (!extension && length(unique(sample_sheet$diagnosis)) != 2L) {
   stop("The selected region does not contain both diagnosis groups after filtering.")
 }
 missing_idats <- is.na(sample_sheet$Basename) |
@@ -158,10 +172,10 @@ minfi::plotQC(intensity_qc)
 dev.off()
 
 passing <- qc_summary$qc_status == "pass"
-if (length(unique(sample_sheet$diagnosis[passing])) != 2L) {
+if (!any(passing) || (!extension && length(unique(sample_sheet$diagnosis[passing])) != 2L)) {
   stop("Sample detection QC left fewer than two diagnosis groups.")
 }
-utils::write.table(sample_sheet[passing, ], file.path(metadata_dir, "sample_sheet_clean.tsv"),
+utils::write.table(sample_sheet[passing, ], file.path(sample_sheet_dir, "sample_sheet_clean.tsv"),
                    sep = "\t", quote = FALSE, row.names = FALSE)
 saveRDS(rg_set[, passing], file.path(results_dir, "rg_set_raw.rds"))
 saveRDS(detection_p[, passing, drop = FALSE], file.path(results_dir, "detection_p.rds"))

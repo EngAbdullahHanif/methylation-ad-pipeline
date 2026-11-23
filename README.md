@@ -8,7 +8,7 @@ The analysis is a methods demonstration using public data. It is not a clinical 
 
 The analysis uses GEO accession [GSE212682](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE212682), generated with the Illumina Infinium MethylationEPIC array. The series contains samples from eight brain regions and provides sample-level metadata and raw IDAT files.
 
-The analysis uses all 29 eligible middle frontal gyrus samples, including 18 controls (diagnosis code 0) and 11 AD samples (code 2). The intermediate diagnosis group was excluded. GEO reports age as `90+` throughout this cohort and provides estimated proportions for five cell types.
+The primary diagnosis analysis uses all 29 eligible middle frontal gyrus samples, including 18 controls (diagnosis code 0) and 11 AD samples (code 2). It excludes the intermediate diagnosis group. GEO reports age as `90+` throughout this cohort and provides estimated proportions for five cell types.
 
 Raw IDAT files are downloaded by `scripts/00_download_data.R` and are excluded from Git. The original candidate records GSE80970 and GSE59685 were inspected first; their series raw archives contained platform resources rather than sample IDAT files, so they were not used for the raw-data workflow.
 
@@ -20,7 +20,8 @@ Raw IDAT files are downloaded by `scripts/00_download_data.R` and are excluded f
 4. Explore principal components and technical variables.
 5. Perform exploratory differential methylation and region-level analysis.
 6. Run probe-bias-aware gene-set enrichment.
-7. Render the R Markdown report and inspect precomputed results through the Shiny app.
+7. Analyze tangle burden in frontal cortex and the paired frontal–dentate diagnosis interaction.
+8. Render the R Markdown report and inspect the precomputed primary results in Shiny.
 
 ## Methods
 
@@ -50,6 +51,14 @@ All three refits were full rank, with 10 to 13 residual degrees of freedom. The 
 
 The independent GSE59685 frontal-cortex comparison evaluated 47 of the 100 masked discovery candidates. Effects agreed in direction for 43 of 47 and correlated at **r = 0.780**. Median absolute adjusted effects were **13.2 percentage points** in discovery and **2.2** in the independent cohort. Zero candidates had a same-direction replication FDR below 0.05. [Replication analysis](docs/replication.md)
 
+### Neuropathology and regional specificity
+
+The tangle-burden model uses the prespecified NIA-AA B score in the middle frontal gyrus. It compares B3 with B2 across all QC-passing donors with a recorded score, including donors with intermediate clinical diagnoses. The model adjusts for array batch, recorded sex, and estimated neuronal proportion. The published Braak-stage EWAS provides related context and includes GSE59685, which also supplies this project's diagnosis comparison. [90+ Study](https://pmc.ncbi.nlm.nih.gov/articles/PMC9710143/) · [Braak-stage EWAS meta-analysis](https://pmc.ncbi.nlm.nih.gov/articles/PMC8192929/)
+
+The regional analysis tests the diagnosis-by-region interaction using the prespecified dentate gyrus comparator. It fits one dentate-minus-frontal difference per donor, with adjustment for recorded sex, neuronal proportion differences, and independent contrasts of array-batch indicators. A positive coefficient means the AD-minus-control contrast is more positive in dentate gyrus. The analysis uses probes passing the same mask and QC in both regions. [Tangle-burden summary](results/neuropathology_summary.tsv) · [Regional interaction summary](results/regional_specificity_summary.tsv)
+
+All 41 frontal arrays passed QC, and the B3-versus-B2 model had 23 residual degrees of freedom. Zero of 745,262 probes passed FDR < 0.05. All 38 dentate arrays passed QC. The regional model used 25 matched donors, 17 controls and 8 AD-coded donors. Five of 745,179 probes passed FDR < 0.05 and absolute adjusted beta interaction ≥ 0.05. Those candidates are exploratory given six residual degrees of freedom, genomic inflation of 2.046, and the concentration of 46.8% of adjusted diagnosis information in one donor.
+
 ## Repository structure
 
 ```text
@@ -58,6 +67,8 @@ scripts/01_import_and_qc.R                 Import and quality control
 scripts/02_normalisation.R                 Normalization and probe filtering
 scripts/03_exploration_and_differential.R PCA, batch assessment, limma, DMRcate
 scripts/06_enrichment.R                    GO and KEGG enrichment
+scripts/07_neuropathology.R                NIA-AA B score in middle frontal gyrus
+scripts/08_regional_specificity.R          Paired diagnosis-by-region interaction
 report/analysis_report.Rmd                 Reproducible HTML report source
 app/app.R                                  Shiny results viewer
 data/metadata/                             Clean sample metadata
@@ -72,7 +83,7 @@ run_all.sh                                 Command-line workflow
 - R 4.5.2 or a compatible R version
 - Python 3.9 or newer, Bash, and curl
 - Internet access for GEO data, KEGG annotations, and package installation
-- Approximately 16 GB RAM recommended for the 29-sample raw-array run
+- Approximately 16 GB RAM recommended for raw array processing. Regional cohorts are processed separately.
 - Pandoc 2.8 or newer for HTML report rendering
 
 ## Running the workflow
@@ -94,6 +105,8 @@ For the independent analysis, run `bash run_all.sh --target replication`. The fi
 
 Run `bash run_all.sh --target leave-one-batch-out` to regenerate the batch-omission results from the cached differential run. The default HTML report also includes this analysis.
 
+Run `bash run_all.sh --target neuropathology` or `bash run_all.sh --target regional-specificity` to regenerate the additional analyses separately. The default HTML report includes both. Each regional cohort is processed and cached separately under `results/extensions/`.
+
 To start the interactive viewer after the workflow has run:
 
 ```r
@@ -106,9 +119,7 @@ To check the saved outputs, render the report in a temporary directory, and exer
 
 ## Limitations and future work
 
-This is an exploratory analysis of one brain region with limited diagnosis overlap across batches. Age is reported as `90+` throughout and is excluded from the models. Adjustment for estimated neuronal proportion leaves possible confounding by other cell types. The independent comparison tests only masked discovery candidates present on the replication platform and uses a different covariate set.
-
-An extension to additional regions of GSE212682 would need to account for repeated samples from the same donors.
+The primary diagnosis comparison has limited overlap across batches. The tangle analysis covers only B2 and B3, and the regional analysis covers donors with usable arrays in both regions. Age is reported as `90+` throughout and is excluded from the models. Adjustment for estimated neuronal proportion leaves possible confounding by other cell types. The independent comparison tests only masked discovery candidates present on the replication platform and uses a different covariate set.
 
 ## Citation
 

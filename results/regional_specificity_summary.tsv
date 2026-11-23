@@ -1,0 +1,2 @@
+contrast	model	n_mfg_qc_pass	n_dg_qc_pass	n_mfg_diagnosis_eligible	n_dg_diagnosis_eligible	n_pairs	n_control_pairs	n_ad_pairs	n_batches	nuisance_rank	max_donor_diagnosis_information_share	design_columns	design_rank	residual_df	n_probes	n_fdr_005	n_fdr_005_abs_delta_beta_005	genomic_inflation_factor
+AD minus control difference in DG minus MFG	DG minus MFG ~ diagnosis + sex + neuronal_difference + batch_difference	41	38	29	28	25	17	8	18	18	0.46807537368413	19	19	6	745179	5	5	2.0456027836634

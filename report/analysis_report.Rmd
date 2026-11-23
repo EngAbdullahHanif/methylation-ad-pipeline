@@ -188,9 +188,42 @@ knitr::kable(head(enrichment[, c("collection", "pathway_id", "Description", "P.D
 
 ![Top exploratory pathways](../results/enrichment_top_pathways.pdf)
 
+# Neurofibrillary tangle burden
+
+The prespecified outcome is the NIA-AA B score for neurofibrillary tangle burden. The model includes all QC-passing middle frontal gyrus donors with a recorded B score, including donors with intermediate clinical diagnoses. The observed contrast is B3 minus B2, adjusted for array batch, recorded sex, and estimated neuronal proportion. The published prefrontal Braak-stage meta-analysis used a different scale and included GSE59685, which also supplies this project's external diagnosis comparison. [90+ Study](https://pmc.ncbi.nlm.nih.gov/articles/PMC9710143/) · [Published meta-analysis](https://pmc.ncbi.nlm.nih.gov/articles/PMC8192929/)
+
+```{r neuropathology}
+pathology <- read.delim(file.path(results_dir, "neuropathology_summary.tsv"))
+pathology_top <- read.delim(file.path(results_dir, "neuropathology_top.tsv"))
+knitr::kable(pathology[, c("n_eligible_arrays", "n_samples", "n_b2", "n_b3", "n_intermediate_diagnoses",
+                          "n_batches_with_both_scores", "design_rank", "residual_df")])
+knitr::kable(pathology[, c("n_probes", "n_fdr_005", "n_fdr_005_abs_delta_beta_005", "genomic_inflation_factor")], digits = 3)
+knitr::kable(read.delim(file.path(results_dir, "neuropathology_score_by_batch.tsv")))
+knitr::kable(head(pathology_top, 10), digits = 4)
+```
+
+![Adjusted tangle-burden effects and ordinary 95% confidence intervals](../results/neuropathology.pdf)
+
+# Regional specificity
+
+The prespecified comparator is the dentate gyrus (DG). Each donor contributes one DG-minus-middle-frontal-gyrus (MFG) methylation difference. The model tests whether that difference varies by diagnosis after adjustment for recorded sex, the within-donor difference in estimated neuronal proportion, and differences in array-batch indicators. This paired model accounts for the two arrays from each donor and estimates the diagnosis-by-region interaction. A positive coefficient means the AD-minus-control contrast is more positive in DG. Both regions use the same mask, and the interaction tests the intersection of the region-level filtered probe sets.
+
+```{r regional-specificity}
+regional <- read.delim(file.path(results_dir, "regional_specificity_summary.tsv"))
+regional_top <- read.delim(file.path(results_dir, "regional_specificity_top.tsv"))
+knitr::kable(regional[, c("n_mfg_qc_pass", "n_dg_qc_pass", "n_pairs", "n_control_pairs", "n_ad_pairs")])
+knitr::kable(regional[, c("n_batches", "nuisance_rank", "design_rank", "residual_df")])
+knitr::kable(regional[, c("n_probes", "n_fdr_005", "n_fdr_005_abs_delta_beta_005", "genomic_inflation_factor")], digits = 3)
+knitr::kable(head(regional_top, 10), digits = 4)
+```
+
+The largest donor contribution to the adjusted diagnosis contrast is `r sprintf("%.1f%%", 100 * regional$max_donor_diagnosis_information_share)`. This share is calculated from the squared diagnosis indicator after projecting out the nuisance covariates. Concentration in one donor, limited residual degrees of freedom, and elevated genomic inflation make the threshold-crossing probes exploratory.
+
+![Adjusted diagnosis-by-region effects and ordinary 95% confidence intervals](../results/regional_specificity.pdf)
+
 # Limitations
 
-- The cohort covers one brain region, with diagnosis overlap in only part of the batch structure.
+- The primary analysis covers one brain region, with diagnosis overlap in only part of the batch structure. The regional model uses only donors with both regions available and spends several degrees of freedom on batch adjustment.
 - Age is supplied as `90+` and has no usable numeric variation here.
 - Bulk brain tissue estimates adjust for neuronal proportion, which leaves possible confounding by other cell types and uncertainty in the published estimates.
 - The independent frontal-cortex comparison is documented separately in `docs/replication.md` because it uses another platform and cohort design.
