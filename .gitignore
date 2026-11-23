@@ -29,6 +29,9 @@ __pycache__/
 !/results/replication_GSE59685_effects.tsv
 !/results/replication_GSE59685.pdf
 !/results/memory_benchmark.tsv
+!/results/leave_one_batch_out_summary.tsv
+!/results/leave_one_batch_out_effects.tsv
+!/results/leave_one_batch_out.pdf
 /results/rg_set_raw.rds
 /results/detection_p.rds
 /results/differential_methylation.tsv

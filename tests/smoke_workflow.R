@@ -45,6 +45,27 @@ stopifnot(!anyDuplicated(pca$sample_id), nrow(pca) == nrow(metadata),
 top <- read.delim("results/differential_top.tsv")
 summary <- read.delim("results/differential_summary.tsv")
 stopifnot(nrow(top) == min(100L, summary$n_probes), !is.unsorted(top$P.Value))
+holdout <- read.delim("results/leave_one_batch_out_summary.tsv")
+holdout_effects <- read.delim("results/leave_one_batch_out_effects.tsv")
+stopifnot(identical(holdout$omitted_batch, c("none", pairs$batch[pairs$shared])),
+          !anyDuplicated(holdout_effects[c("omitted_batch", "CpG")]),
+          file.info("results/leave_one_batch_out.pdf")$size > 0L,
+          isTRUE(all.equal(holdout_effects$delta_beta[holdout_effects$omitted_batch == "none"], top$delta_beta)))
+for (i in seq_len(nrow(holdout))) {
+  row <- holdout[i, ]
+  cohort <- metadata[metadata$batch != row$omitted_batch, ]
+  cohort$diagnosis <- factor(cohort$diagnosis, levels = c("Control", "AD"))
+  design_matrix <- model.matrix(as.formula(design$model[1L]), cohort)
+  effects <- holdout_effects[holdout_effects$omitted_batch == row$omitted_batch, ]
+  stopifnot(row$status == "estimable", row$n_samples == nrow(cohort), row$n_removed == nrow(metadata) - nrow(cohort),
+            row$design_rank == qr(design_matrix)$rank, row$design_rank == row$design_columns,
+            row$residual_df == nrow(cohort) - row$design_rank, row$residual_df > 0,
+            identical(effects$CpG, top$CpG), all(effects$ci_95_low <= effects$delta_beta),
+            all(effects$delta_beta <= effects$ci_95_high),
+            row$n_leading_same_direction == sum(sign(effects$delta_beta) == sign(top$delta_beta)),
+            row$n_primary_hits_passing_both_cutoffs == sum(effects$primary_passed_both_cutoffs &
+                                                            effects$fdr < 0.05 & abs(effects$delta_beta) >= 0.05))
+}
 mask <- read.delim("data/reference/EPIC.hg19.MASK_general.20180909.tsv.gz", colClasses = "character")
 mask_summary <- read.delim("results/probe_mask_summary.tsv")
 mask_comparison <- read.delim("results/probe_mask_comparison.tsv")
@@ -107,6 +128,15 @@ if (has_beta_matrix) {
     expected <- lm.fit(design_matrices[[i]], y)$coefficients["diagnosisAD", ]
     field <- c("primary_delta_beta", "shared_delta_beta")[i]
     stopifnot(isTRUE(all.equal(unname(expected), head(comparison[[field]], length(probes)))))
+  }
+  for (omitted in holdout$omitted_batch) {
+    cohort <- metadata[metadata$batch != omitted, ]
+    cohort$diagnosis <- factor(cohort$diagnosis, levels = c("Control", "AD"))
+    cohort$observed_beta <- as.numeric(beta[top$CpG[1L], match(cohort$sample_id, ids)])
+    fit <- lm(update(as.formula(design$model[1L]), observed_beta ~ .), cohort)
+    expected <- c(coef(fit)["diagnosisAD"], confint(fit, "diagnosisAD"))
+    row <- holdout_effects[holdout_effects$omitted_batch == omitted & holdout_effects$primary_rank == 1L, ]
+    stopifnot(isTRUE(all.equal(unname(expected), unlist(row[c("delta_beta", "ci_95_low", "ci_95_high")], use.names = FALSE))))
   }
   rm(beta)
 }
