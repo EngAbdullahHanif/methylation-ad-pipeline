@@ -45,6 +45,17 @@ stopifnot(!anyDuplicated(pca$sample_id), nrow(pca) == nrow(metadata),
 top <- read.delim("results/differential_top.tsv")
 summary <- read.delim("results/differential_summary.tsv")
 stopifnot(nrow(top) == min(100L, summary$n_probes), !is.unsorted(top$P.Value))
+mask <- read.delim("data/reference/EPIC.hg19.MASK_general.20180909.tsv.gz", colClasses = "character")
+mask_summary <- read.delim("results/probe_mask_summary.tsv")
+mask_comparison <- read.delim("results/probe_mask_comparison.tsv")
+before_top <- which(mask_comparison$rank_before_mask <= 100L)
+after_top <- which(mask_comparison$rank_after_mask <= 100L)
+stopifnot(!any(top$CpG %in% mask$CpG), mask_summary$probes_after_mask == summary$n_probes,
+          mask_summary$probes_before_mask - summary$n_probes == mask_summary$probes_excluded,
+          mask_summary$probes_excluded > 0L,
+          mask_summary$top100_overlap == length(intersect(before_top, after_top)),
+          mask_summary$pre_mask_top100_excluded == sum(mask_comparison$excluded_by_mask[before_top]),
+          identical(top$CpG, mask_comparison$CpG[after_top][order(mask_comparison$rank_after_mask[after_top])]))
 comparison <- read.delim("results/differential_sensitivity_top.tsv")
 sensitivity <- read.delim("results/differential_sensitivity_summary.tsv")
 stopifnot(identical(comparison$CpG, top$CpG), identical(comparison$primary_logFC, top$logFC),
@@ -88,6 +99,7 @@ app <- shiny::shinyAppDir("app")
 has_beta_matrix <- file.exists("results/beta_filtered.rds")
 if (has_beta_matrix) {
   beta <- readRDS("results/beta_filtered.rds")
+  stopifnot(!any(rownames(beta) %in% mask$CpG), nrow(beta) == summary$n_probes)
   ids <- sub("_.*$", "", colnames(beta))
   probes <- head(top$CpG, 5L)
   for (i in seq_along(cohorts)) {
@@ -117,4 +129,19 @@ report <- rmarkdown::render("report/analysis_report.Rmd", output_dir = report_di
                             envir = new.env(), quiet = TRUE)
 stopifnot(file.info(report)$size > 0L)
 unlink(report_dir, recursive = TRUE)
+if ("--replication" %in% commandArgs(trailingOnly = TRUE)) {
+  replication <- read.delim("results/replication_GSE59685_summary.tsv")
+  effects <- read.delim("results/replication_GSE59685_effects.tsv")
+  tested <- effects[effects$status == "tested", ]
+  stopifnot(identical(top$CpG, effects$CpG), identical(top$delta_beta, effects$discovery_delta_beta),
+            replication$n_ad == 60L, replication$n_control == 24L, replication$residual_df > 0L,
+            replication$probes_compared == nrow(tested),
+            replication$discovery_passing_cutoffs == sum(effects$discovery_passed_cutoffs),
+            replication$discovery_passes_tested == sum(tested$discovery_passed_cutoffs),
+            isTRUE(all.equal(tested$replication_fdr, p.adjust(tested$replication_p, "BH"))),
+            isTRUE(all.equal(replication$direction_agreement, mean(tested$same_direction))),
+            isTRUE(all.equal(replication$beta_effect_pearson_r,
+                             cor(tested$discovery_delta_beta, tested$replication_delta_beta))),
+            file.info("results/replication_GSE59685.pdf")$size > 0L)
+}
 message("Workflow smoke test passed.")

@@ -1,0 +1,2 @@
+cohort	region	platform	model	n_control	n_ad	design_rank	residual_df	discovery_candidates	probes_in_matrix	probes_compared	beta_effect_pearson_r	direction_agreement	median_abs_discovery_delta_beta	median_abs_replication_delta_beta	median_abs_effect_difference	same_direction_fdr_below_005	discovery_passing_cutoffs	discovery_passes_tested	discovery_passes_supported
+GSE59685	frontal cortex	Illumina 450K	beta ~ diagnosis + age + sex + chip	24	60	15	69	100	47	47	0.78002557334252	0.914893617021277	0.13225882896894	0.0215177625324052	0.101752876354415	0	4	1	0

@@ -316,6 +316,45 @@ utils::write.table(dmr_table, file.path(results_dir, "dmr_ranges.tsv"),
 utils::write.table(dmr_summary, file.path(results_dir, "dmr_summary.tsv"),
                    sep = "\t", quote = FALSE, row.names = FALSE)
 
+# Refit the primary model with the identical pre-mask assay and covariates.
+rm(m_values)
+gc()
+before_ids <- readRDS(file.path(results_dir, "probe_universe_before_mask.rds"))
+before_set <- readRDS(file.path(results_dir, "methyl_set_noob.rds"))
+if (!identical(sub("_.*$", "", colnames(before_set)), metadata$sample_id) ||
+    !all(before_ids %in% rownames(before_set)) || !all(results$CpG %in% before_ids)) {
+  stop("The pre-mask assay must match the tracked QC cohort and probe universe.")
+}
+before_set <- before_set[before_ids, ]
+before_mask <- fit_diagnosis(minfi::getM(before_set), minfi::getBeta(before_set), primary$matrix)
+rm(before_set)
+rank_probes <- function(result) result$CpG[order(result$P.Value, -abs(result$delta_beta), na.last = NA)]
+before_rank <- rank_probes(before_mask)
+after_rank <- rank_probes(results)
+before_top <- head(before_rank, 100L)
+after_top <- head(after_rank, 100L)
+compared_cpgs <- union(before_top, after_top)
+old <- match(compared_cpgs, before_mask$CpG)
+new <- match(compared_cpgs, results$CpG)
+mask_comparison <- data.frame(
+  CpG = compared_cpgs, excluded_by_mask = !compared_cpgs %in% results$CpG,
+  rank_before_mask = match(compared_cpgs, before_rank), rank_after_mask = match(compared_cpgs, after_rank),
+  p_before_mask = before_mask$P.Value[old], p_after_mask = results$P.Value[new],
+  fdr_before_mask = before_mask$adj.P.Val[old], fdr_after_mask = results$adj.P.Val[new]
+)
+mask_summary <- data.frame(
+  probes_before_mask = nrow(before_mask), probes_after_mask = nrow(results),
+  probes_excluded = nrow(before_mask) - nrow(results),
+  pre_mask_top100_excluded = sum(!before_top %in% results$CpG),
+  top100_overlap = length(intersect(before_top, after_top)),
+  leading_CpG_before_mask = before_rank[1L], leading_CpG_after_mask = after_rank[1L],
+  passing_both_cutoffs_before = sum(significant(before_mask)), passing_both_cutoffs_after = significant_count
+)
+utils::write.table(mask_summary, file.path(results_dir, "probe_mask_summary.tsv"),
+                   sep = "\t", quote = FALSE, row.names = FALSE)
+utils::write.table(mask_comparison, file.path(results_dir, "probe_mask_comparison.tsv"),
+                   sep = "\t", quote = FALSE, row.names = FALSE)
+
 saveRDS(list(pca_scores = pca_scores, pca_variance = pca_variance,
              differential = results, summary = differential_summary,
              model_design = rbind(primary$diagnostics, sensitivity$diagnostics),

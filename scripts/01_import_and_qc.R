@@ -109,11 +109,12 @@ rg_set <- minfi::read.metharray.exp(targets = sample_sheet)
 minfi::pData(rg_set)$diagnosis <- sample_sheet$diagnosis
 minfi::pData(rg_set)$sample_id <- sample_sheet$sample_id
 
-normalized_set <- minfi::preprocessRaw(rg_set)
-intensity_qc <- minfi::getQC(normalized_set)
-genomic_set <- minfi::mapToGenome(normalized_set)
+# Reuse one raw preprocessing result for intensity QC and sex prediction.
+raw_methylation <- minfi::preprocessRaw(rg_set)
+intensity_qc <- minfi::getQC(raw_methylation)
+genomic_set <- minfi::mapToGenome(raw_methylation)
 sex_prediction <- minfi::getSex(genomic_set)
-rm(normalized_set, genomic_set)
+rm(raw_methylation, genomic_set)
 gc()
 
 detection_p <- minfi::detectionP(rg_set)

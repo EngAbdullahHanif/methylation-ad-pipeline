@@ -1,2 +1,2 @@
 n_probes	m_effect_pearson_r	beta_effect_pearson_r	m_direction_agreement	n_primary_top_probes	top_m_direction_agreement	median_abs_delta_beta_change	primary_passing_both_cutoffs	shared_passing_both_cutoffs	passing_both_cutoffs_in_both
-815581	0.976801446558345	0.976101096593517	0.947758714339839	100	1	0.00241503969276444	0	1	0
+745241	0.977285073558079	0.976696894116429	0.948368380161585	100	1	0.00236415215100381	4	1	0

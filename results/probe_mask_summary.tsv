@@ -1,0 +1,2 @@
+probes_before_mask	probes_after_mask	probes_excluded	pre_mask_top100_excluded	top100_overlap	leading_CpG_before_mask	leading_CpG_after_mask	passing_both_cutoffs_before	passing_both_cutoffs_after
+815581	745241	70340	7	92	cg12586176	cg12586176	0	4
