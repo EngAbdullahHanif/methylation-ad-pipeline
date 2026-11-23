@@ -4,4 +4,4 @@ Common to normalized data, detection p-values, and annotation	865859	185956
 Pass detection p-value in at least 80% of samples	864712	1147
 Autosomal probes	845407	19305
 No CpG or SBE SNP annotation	815581	29826
-Cross-reactive probe list	815581	0
+Zhou EPIC v1 hg19 MASK_general (20180909)	745241	70340

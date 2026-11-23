@@ -26,7 +26,7 @@ Raw IDAT files are downloaded by `scripts/00_download_data.R` and are excluded f
 
 Quality control includes mean detection p-values, intensity plots, and methylation-based sex prediction. Samples with mean detection p-values above 0.01 or non-finite means are excluded before normalization. Sex mismatches are flagged for review.
 
-Noob is used for background and dye-bias correction. Probes are filtered using detection performance, chromosome, and CpG or single-base-extension SNP annotations. A validated EPIC cross-reactive probe list was not available in the selected package set, so that limitation is recorded and no unverified list is substituted. Missing beta values are checked after filtering; no imputation is performed when none are present.
+Noob is used for background and dye-bias correction. Filtering uses detection performance, chromosome, CpG or single-base-extension SNP annotations, and the archived Zhou EPIC v1 hg19 `MASK_general` probe IDs. The mask version, source, and checksum are recorded in the [reference file documentation](data/reference/README.md). The final beta values are checked for missingness.
 
 The primary limma model tests the AD versus control contrast on M-values with fixed effects for array batch and recorded sex, plus the estimated neuronal proportion. Array batch and bisulfite batch define the same groups in this cohort, so the models use array batch. The reported adjusted delta beta comes from fitting the same design to beta values. The sensitivity analysis fits the same model and probes on samples from batches with both diagnoses. Both designs must have full column rank and positive residual degrees of freedom.
 
@@ -36,11 +36,15 @@ DMRcate uses the primary design and requires at least two CpGs for a region. Exp
 
 All 29 samples passed detection QC and no sex mismatches were flagged. The primary fit covers 12 batches and has rank 15 with 14 residual degrees of freedom. The shared-batch fit covers batches 3, 4, and 5 with 4 controls and 6 AD samples, rank 6, and 4 residual degrees of freedom.
 
-Filtering retained 815,581 probes with complete beta values. The adjusted M-value effects correlated at **r = 0.977**, and all 100 probes ranked highest by the primary fit had the same effect direction in the shared-batch fit. Zero primary probes and one shared-batch probe met both FDR < 0.05 and absolute adjusted delta beta ≥ 0.05. The primary genomic inflation factor was **2.761**, and DMRcate found fewer than two individually significant CpGs for region calling.
+The mask removed **70,340** of 815,581 QC-passing probes and left **745,241**. Seven of the original top 100 were excluded, 92 probes appeared in both top-100 lists, and the leading probe remained `cg12586176`. Four primary probes passed both FDR < 0.05 and absolute adjusted delta beta ≥ 0.05 after masking, compared with zero before masking. The primary genomic inflation factor after masking was **2.812**. DMRcate returned zero regions at the specified threshold.
+
+Across the masked probe set, the primary and shared-batch adjusted M-value effects correlated at **r = 0.977**. All 100 primary top-ranked probes had the same effect direction in the shared-batch fit. The shared-batch fit had one probe meeting both cutoffs, with zero probes meeting both cutoffs in both fits.
 
 The report includes the paired estimates for the leading probes and summarizes agreement across all probes. The workflow saves the full comparison locally as `results/differential_sensitivity.rds`.
 
 The direct within-batch diagnosis contrast comes from the shared batches. The two analyses share those samples, so their agreement measures sensitivity to cohort restriction. Elevated genomic inflation warrants caution when interpreting the p-values.
+
+The independent GSE59685 frontal-cortex comparison evaluated 47 of the 100 masked discovery candidates. Effects agreed in direction for 43 of 47 and correlated at **r = 0.780**. Median absolute adjusted effects were **13.2 percentage points** in discovery and **2.2** in the independent cohort. Zero candidates had a same-direction replication FDR below 0.05. [Replication analysis](docs/replication.md)
 
 ## Repository structure
 
@@ -62,6 +66,7 @@ run_all.sh                                 Command-line workflow
 
 - macOS or Linux
 - R 4.5.2 or a compatible R version
+- Python 3.9 or newer, Bash, and curl
 - Internet access for GEO data, KEGG annotations, and package installation
 - Approximately 16 GB RAM recommended for the 29-sample raw-array run
 - Pandoc 2.8 or newer for HTML report rendering
@@ -77,6 +82,12 @@ bash run_all.sh
 
 The workflow downloads the raw data, regenerates the metadata and results, runs enrichment, and renders `report/analysis_report.html`. Raw data and large local result objects are not committed.
 
+The runner caches completed stages in `.workflow-cache`. It checks stage source and lockfile hashes, input and output file fingerprints, and upstream state before reusing the results. Run `bash run_all.sh --target normalization` to stop after processing the arrays. Run `bash run_all.sh --force-from report` to rebuild the report from valid upstream caches. Change only `app/app.R` and restart Shiny to reuse the same data directly. A cache miss or `--force-from` reruns the affected stage and its dependent stages up to the specified target.
+
+The runner records elapsed seconds and peak resident memory for every executed stage in `.workflow-cache/benchmarks.tsv`. The 29-sample run with the cached raw archive is recorded in [`results/memory_benchmark.tsv`](results/memory_benchmark.tsv). Peak resident memory measures the stage process and is distinct from R's heap size.
+
+For the independent analysis, run `bash run_all.sh --target replication`. The first run downloads the 1.9 GB GSE59685 beta matrix and streams the candidate rows. Cohort selection, models, and results are documented in the [replication analysis](docs/replication.md).
+
 To start the interactive viewer after the workflow has run:
 
 ```r
@@ -85,13 +96,13 @@ shiny::runApp("app")
 
 The app reads precomputed results. Its differential table and filters use the 100 probes with the smallest limma p-values. The probe viewer uses the locally generated beta matrix when available.
 
-To check the saved outputs, render the report in a temporary directory, and exercise the Shiny server, run `Rscript tests/smoke_workflow.R` from the repository root.
+To check the saved outputs, render the report in a temporary directory, and exercise the Shiny server, run `Rscript tests/smoke_workflow.R` from the repository root. Add `--replication` to also check the independent comparison.
 
 ## Limitations and future work
 
-This is an exploratory analysis of one brain region with limited diagnosis overlap across batches. Age is reported as `90+` throughout and is excluded from the models. Adjustment for estimated neuronal proportion leaves possible confounding by other cell types. The probe filtering lacks a cross-reactive probe mask, and the study has no independent replication cohort.
+This is an exploratory analysis of one brain region with limited diagnosis overlap across batches. Age is reported as `90+` throughout and is excluded from the models. Adjustment for estimated neuronal proportion leaves possible confounding by other cell types. The independent comparison tests only masked discovery candidates present on the replication platform and uses a different covariate set.
 
-Further work could validate a platform-specific cross-reactive probe mask, test the same contrast in an independent brain cohort, and account for repeated donors when extending to other brain regions.
+An extension to additional regions of GSE212682 would need to account for repeated samples from the same donors.
 
 ## Citation
 

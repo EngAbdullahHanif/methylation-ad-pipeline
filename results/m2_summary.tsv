@@ -1,2 +1,2 @@
-detection_threshold	minimum_detection_fraction	missing_beta_values	imputation_method	cross_reactive_filter_applied	cross_reactive_filter_note
-0.01	0.8	0	none: no missing beta values were observed after filtering	FALSE	No validated EPIC list supplied by allowed installed packages; no unverified list substituted.
+detection_threshold	minimum_detection_fraction	missing_beta_values	imputation_method	probe_mask	mask_excluded_probes
+0.01	0.8	0	none: no missing beta values were observed after filtering	Zhou EPIC v1 hg19 MASK_general (20180909)	70340

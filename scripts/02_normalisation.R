@@ -12,7 +12,6 @@ if (!requireNamespace("minfi", quietly = TRUE) ||
 
 project_dir <- normalizePath(".", mustWork = TRUE)
 results_dir <- file.path(project_dir, "results")
-metadata_dir <- file.path(project_dir, "data", "metadata")
 dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
 
 rg_set <- readRDS(file.path(results_dir, "rg_set_raw.rds"))
@@ -72,12 +71,17 @@ sex_chromosome_keep <- !annotation$chr %in% c("chrX", "chrY")
 # used by minfi's SNP filter; this avoids creating another full assay object.
 snp_keep <- is.na(annotation$CpG_rs) & is.na(annotation$SBE_rs)
 
-# No validated cross-reactive EPIC list is supplied by the allowed installed packages.
-# This limitation is recorded instead of substituting an unverified probe list.
-cross_reactive_keep <- rep(TRUE, nrow(noob_set))
-names(cross_reactive_keep) <- rownames(noob_set)
-
-keep <- detection_keep & sex_chromosome_keep & snp_keep & cross_reactive_keep
+mask_version <- "Zhou EPIC v1 hg19 MASK_general (20180909)"
+mask_file <- file.path(project_dir, "data", "reference", "EPIC.hg19.MASK_general.20180909.tsv.gz")
+masked_probes <- read.delim(mask_file, colClasses = "character")$CpG
+if (!length(masked_probes) || anyNA(masked_probes) || anyDuplicated(masked_probes)) {
+  stop("Expected a nonempty EPIC v1 mask with unique probe IDs.")
+}
+before_mask <- detection_keep & sex_chromosome_keep & snp_keep
+keep <- before_mask & !common_probes %in% masked_probes
+if (!any(keep) || !any(before_mask & !keep)) {
+  stop("The EPIC mask did not return a plausible overlap with the QC-passing probes.")
+}
 filtered_set <- noob_set[keep, ]
 filtered_beta <- minfi::getBeta(filtered_set)
 missing_before_imputation <- sum(is.na(filtered_beta))
@@ -94,14 +98,14 @@ filter_counts <- data.frame(
     "Pass detection p-value in at least 80% of samples",
     "Autosomal probes",
     "No CpG or SBE SNP annotation",
-    "Cross-reactive probe list"
+    mask_version
   ),
   probes_remaining = c(
     imported_probe_count,
     length(common_probes),
     sum(detection_keep),
     sum(detection_keep & sex_chromosome_keep),
-    sum(detection_keep & sex_chromosome_keep & snp_keep),
+    sum(before_mask),
     sum(keep)
   ),
   probes_removed_at_step = c(
@@ -109,8 +113,8 @@ filter_counts <- data.frame(
     imported_probe_count - length(common_probes),
     length(common_probes) - sum(detection_keep),
     sum(detection_keep) - sum(detection_keep & sex_chromosome_keep),
-    sum(detection_keep & sex_chromosome_keep) - sum(detection_keep & sex_chromosome_keep & snp_keep),
-    0L
+    sum(detection_keep & sex_chromosome_keep) - sum(before_mask),
+    sum(before_mask & !keep)
   ),
   stringsAsFactors = FALSE
 )
@@ -125,14 +129,15 @@ m2_summary <- data.frame(
   minimum_detection_fraction = minimum_detection_fraction,
   missing_beta_values = missing_before_imputation,
   imputation_method = imputation_method,
-  cross_reactive_filter_applied = FALSE,
-  cross_reactive_filter_note = "No validated EPIC list supplied by allowed installed packages; no unverified list substituted.",
+  probe_mask = mask_version,
+  mask_excluded_probes = sum(before_mask & !keep),
   stringsAsFactors = FALSE
 )
 utils::write.table(m2_summary, file.path(results_dir, "m2_summary.tsv"),
                    sep = "\t", quote = FALSE, row.names = FALSE)
 
 saveRDS(noob_set, file.path(results_dir, "methyl_set_noob.rds"))
+saveRDS(common_probes[before_mask], file.path(results_dir, "probe_universe_before_mask.rds"))
 saveRDS(filtered_set, file.path(results_dir, "methyl_set_filtered.rds"))
 saveRDS(filtered_beta, file.path(results_dir, "beta_filtered.rds"))
 

@@ -4,6 +4,8 @@
 .Rproj.user/
 renv/library/
 renv/staging/
+/.workflow-cache/
+__pycache__/
 
 # Raw and downloaded data
 /data/raw/*
@@ -21,6 +23,12 @@ renv/staging/
 !/results/model_design.tsv
 !/results/differential_sensitivity_summary.tsv
 !/results/differential_sensitivity_top.tsv
+!/results/probe_mask_summary.tsv
+!/results/probe_mask_comparison.tsv
+!/results/replication_GSE59685_summary.tsv
+!/results/replication_GSE59685_effects.tsv
+!/results/replication_GSE59685.pdf
+!/results/memory_benchmark.tsv
 /results/rg_set_raw.rds
 /results/detection_p.rds
 /results/differential_methylation.tsv
