@@ -18,9 +18,13 @@ dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
 
 accession <- "GSE212682"
 region_to_keep <- "middle frontal gyrus"
-max_per_group <- 5L
 
-gse <- GEOquery::getGEO(accession, GSEMatrix = TRUE, destdir = metadata_dir)[[1]]
+matrix_file <- file.path(metadata_dir, paste0(accession, "_series_matrix.txt.gz"))
+gse <- if (file.exists(matrix_file)) {
+  GEOquery::getGEO(filename = matrix_file, getGPL = FALSE)
+} else {
+  GEOquery::getGEO(accession, GSEMatrix = TRUE, destdir = metadata_dir, getGPL = FALSE)[[1L]]
+}
 geo_metadata <- Biobase::pData(gse)
 characteristic_columns <- grep("^characteristics_ch1", names(geo_metadata), value = TRUE)
 characteristic_table <- as.data.frame(geo_metadata[, characteristic_columns, drop = FALSE])
@@ -50,6 +54,11 @@ sample_sheet <- data.frame(
   adseverityscore = find_characteristic("adseverityscore"),
   bisulfite_batch = find_characteristic("bisulfite_batch"),
   batch = find_characteristic("batch"),
+  proportion_neurons = as.numeric(find_characteristic("proportion_neurons")),
+  proportion_olig_opc = as.numeric(find_characteristic("proportion_olig_opc")),
+  proportion_astrocytes = as.numeric(find_characteristic("proportion_astrocytes")),
+  proportion_endothelial = as.numeric(find_characteristic("proportion_endothelial")),
+  proportion_microglia = as.numeric(find_characteristic("proportion_microglia")),
   stringsAsFactors = FALSE
 )
 
@@ -72,46 +81,36 @@ green_files$basename <- sub("_Grn\\.idat\\.gz$", "", basename(green_files$idat_f
                             ignore.case = TRUE)
 green_files$sentrix_id <- sub("^[^_]+_([^_]+)_.*$", "\\1", green_files$basename)
 green_files$sentrix_position <- sub("^.*_(R[0-9]+C[0-9]+)$", "\\1", green_files$basename)
-green_files$Basename <- file.path(dirname(green_files$idat_file), green_files$basename)
+green_files$Basename <- file.path("data", "raw", accession, "idats", green_files$basename)
 
 sample_sheet <- merge(sample_sheet, green_files[, c(
   "sample_id", "sentrix_id", "sentrix_position", "Basename"
 )], by = "sample_id", all.x = TRUE, sort = FALSE)
 sample_sheet <- sample_sheet[
-  sample_sheet$region == region_to_keep &
-    sample_sheet$diagnosis %in% c("Control", "AD") &
-    !is.na(sample_sheet$Basename),
+  sample_sheet$region %in% region_to_keep &
+    sample_sheet$diagnosis %in% c("Control", "AD"),
 ]
-
-set.seed(20261003)
-sample_sheet <- do.call(rbind, lapply(split(sample_sheet, sample_sheet$diagnosis), function(group) {
-  group[sample(seq_len(nrow(group)), min(nrow(group), max_per_group)), , drop = FALSE]
-}))
 sample_sheet <- sample_sheet[order(sample_sheet$diagnosis, sample_sheet$sample_id), ]
 rownames(sample_sheet) <- NULL
 
-if (nrow(sample_sheet) < 4L || length(unique(sample_sheet$diagnosis)) != 2L) {
+if (length(unique(sample_sheet$diagnosis)) != 2L) {
   stop("The selected region does not contain both diagnosis groups after filtering.")
 }
-
-utils::write.table(
-  sample_sheet,
-  file.path(metadata_dir, "sample_sheet_clean.tsv"),
-  sep = "\t", quote = FALSE, row.names = FALSE
-)
+missing_idats <- is.na(sample_sheet$Basename) |
+  !file.exists(paste0(sample_sheet$Basename, "_Red.idat.gz"))
+if (any(missing_idats) || anyDuplicated(sample_sheet$sample_id)) {
+  stop("Expected one complete red/green IDAT pair for each eligible GEO sample.")
+}
 
 message("Selected samples: ", nrow(sample_sheet))
 print(table(sample_sheet$diagnosis))
 
-rg_set <- minfi::read.metharray.exp(
-  targets = sample_sheet,
-  extended = TRUE,
-  force = TRUE
-)
+rg_set <- minfi::read.metharray.exp(targets = sample_sheet)
 minfi::pData(rg_set)$diagnosis <- sample_sheet$diagnosis
 minfi::pData(rg_set)$sample_id <- sample_sheet$sample_id
 
 normalized_set <- minfi::preprocessRaw(rg_set)
+intensity_qc <- minfi::getQC(normalized_set)
 genomic_set <- minfi::mapToGenome(normalized_set)
 sex_prediction <- minfi::getSex(genomic_set)
 rm(normalized_set, genomic_set)
@@ -120,7 +119,7 @@ gc()
 detection_p <- minfi::detectionP(rg_set)
 mean_detection_p <- colMeans(detection_p, na.rm = TRUE)
 qc_threshold <- 0.01
-qc_status <- ifelse(mean_detection_p <= qc_threshold, "pass", "fail")
+qc_status <- ifelse(is.finite(mean_detection_p) & mean_detection_p <= qc_threshold, "pass", "fail")
 qc_summary <- data.frame(
   sample_id = sample_sheet$sample_id,
   diagnosis = sample_sheet$diagnosis,
@@ -130,8 +129,6 @@ qc_summary <- data.frame(
   stringsAsFactors = FALSE
 )
 
-normalized_set <- minfi::preprocessRaw(rg_set)
-genomic_set <- minfi::mapToGenome(normalized_set)
 sex_check <- data.frame(
   sample_id = sample_sheet$sample_id,
   metadata_sex = sample_sheet$sex,
@@ -156,11 +153,17 @@ abline(h = qc_threshold, col = "red", lty = 2)
 dev.off()
 
 pdf(file.path(results_dir, "qc_intensity.pdf"), width = 7, height = 7)
-minfi::plotQC(rg_set)
+minfi::plotQC(intensity_qc)
 dev.off()
 
-saveRDS(rg_set, file.path(results_dir, "rg_set_raw.rds"))
-saveRDS(detection_p, file.path(results_dir, "detection_p.rds"))
+passing <- qc_summary$qc_status == "pass"
+if (length(unique(sample_sheet$diagnosis[passing])) != 2L) {
+  stop("Sample detection QC left fewer than two diagnosis groups.")
+}
+utils::write.table(sample_sheet[passing, ], file.path(metadata_dir, "sample_sheet_clean.tsv"),
+                   sep = "\t", quote = FALSE, row.names = FALSE)
+saveRDS(rg_set[, passing], file.path(results_dir, "rg_set_raw.rds"))
+saveRDS(detection_p[, passing, drop = FALSE], file.path(results_dir, "detection_p.rds"))
 saveRDS(qc_summary, file.path(results_dir, "qc_summary.rds"))
 saveRDS(sex_check, file.path(results_dir, "sex_check.rds"))
 utils::write.table(qc_summary, file.path(results_dir, "qc_summary.tsv"),

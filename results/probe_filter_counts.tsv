@@ -1,7 +1,7 @@
 step	probes_remaining	probes_removed_at_step
 Imported probes	1051815	NA
 Common to normalized data, detection p-values, and annotation	865859	185956
-Pass detection p-value in at least 80% of samples	864832	1027
-Autosomal probes	845521	19311
-No CpG or SBE SNP annotation	815651	29870
-Cross-reactive probe list	815651	0
+Pass detection p-value in at least 80% of samples	864712	1147
+Autosomal probes	845407	19305
+No CpG or SBE SNP annotation	815581	29826
+Cross-reactive probe list	815581	0

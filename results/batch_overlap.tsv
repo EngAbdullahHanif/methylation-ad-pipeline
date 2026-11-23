@@ -1,0 +1,13 @@
+batch	n_control	n_ad	shared	bisulfite_batches
+Batch_0	2	0	FALSE	2019_02_19
+Batch_1	6	0	FALSE	2019_03_20
+Batch_10	1	0	FALSE	2019_06_04
+Batch_11	0	1	FALSE	2019_06_11
+Batch_15	0	1	FALSE	2019_07_09
+Batch_16	3	0	FALSE	2019_09_12
+Batch_2	1	0	FALSE	2019_03_26
+Batch_3	1	2	TRUE	2019_04_02
+Batch_4	1	1	TRUE	2019_04_09
+Batch_5	2	3	TRUE	2019_04_16
+Batch_6	0	3	FALSE	2019_04_23
+Batch_7	1	0	FALSE	2019_04_30

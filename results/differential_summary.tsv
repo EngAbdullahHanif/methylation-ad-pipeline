@@ -1,2 +1,2 @@
 model	coefficient	n_samples	n_probes	significant_fdr_005_delta_beta_005	genomic_inflation_factor	model_note
-~ diagnosis	diagnosisAD	10	815651	4	1.51690066018396	Primary model is diagnosis-only: age is constant and diagnosis is confounded with batch in this 10-sample subset; adding batch would make the diagnosis effect non-identifiable.
+~diagnosis + batch + sex + proportion_neurons	diagnosisAD	29	815581	0	2.76071322569287	The primary fit uses all QC-passing samples with adjustment for array batch, recorded sex and estimated neuronal proportion. The sensitivity fit is restricted to array batches containing both diagnoses. Age is excluded because GEO reports 90+ throughout. Bisulfite batch is recorded separately from the fitted array batch.

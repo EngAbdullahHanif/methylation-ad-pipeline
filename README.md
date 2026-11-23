@@ -8,7 +8,7 @@ The analysis is a methods demonstration using public data. It is not a clinical 
 
 The analysis uses GEO accession [GSE212682](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE212682), generated with the Illumina Infinium MethylationEPIC array. The series contains samples from eight brain regions and provides sample-level metadata and raw IDAT files.
 
-The working analysis is restricted to the middle frontal gyrus. Samples with an intermediate diagnosis code were excluded. A fixed seed (`20261003`) was used to select five Alzheimer's disease samples and five controls. The small subset reflects the memory available for raw EPIC import on the development computer; it is not a biological inclusion criterion.
+The analysis uses all 29 eligible middle frontal gyrus samples, including 18 controls (diagnosis code 0) and 11 AD samples (code 2). The intermediate diagnosis group was excluded. GEO reports age as `90+` throughout this cohort and provides estimated proportions for five cell types.
 
 Raw IDAT files are downloaded by `scripts/00_download_data.R` and are excluded from Git. The original candidate records GSE80970 and GSE59685 were inspected first; their series raw archives contained platform resources rather than sample IDAT files, so they were not used for the raw-data workflow.
 
@@ -24,19 +24,23 @@ Raw IDAT files are downloaded by `scripts/00_download_data.R` and are excluded f
 
 ## Methods
 
-Quality control includes mean detection p-values, intensity plots, and methylation-based sex prediction. The sample-level detection p-value threshold is 0.01.
+Quality control includes mean detection p-values, intensity plots, and methylation-based sex prediction. Samples with mean detection p-values above 0.01 or non-finite means are excluded before normalization. Sex mismatches are flagged for review.
 
 Noob is used for background and dye-bias correction. Probes are filtered using detection performance, chromosome, and CpG or single-base-extension SNP annotations. A validated EPIC cross-reactive probe list was not available in the selected package set, so that limitation is recorded and no unverified list is substituted. Missing beta values are checked after filtering; no imputation is performed when none are present.
 
-Differential methylation is tested with limma on M-values. Beta-scale delta values are reported as effect sizes. DMRcate is used for exploratory region-level analysis. Gene-set enrichment uses `missMethyl::gometh`, which accounts for the unequal number of array probes assigned to genes.
+The primary limma model tests the AD versus control contrast on M-values with fixed effects for array batch and recorded sex, plus the estimated neuronal proportion. Array batch and bisulfite batch define the same groups in this cohort, so the models use array batch. The reported adjusted delta beta comes from fitting the same design to beta values. The sensitivity analysis fits the same model and probes on samples from batches with both diagnoses. Both designs must have full column rank and positive residual degrees of freedom.
+
+DMRcate uses the primary design and requires at least two CpGs for a region. Exploratory enrichment applies `missMethyl::gometh` to the 100 CpGs with the smallest primary p-values, accounting for differences in the number of array probes assigned to each gene.
 
 ## Results
 
-The executed analysis contains 10 samples: 5 Alzheimer's disease samples and 5 controls. All samples passed the mean detection p-value threshold, and no sex mismatches were flagged.
+All 29 samples passed detection QC and no sex mismatches were flagged. The primary fit covers 12 batches and has rank 15 with 14 residual degrees of freedom. The shared-batch fit covers batches 3, 4, and 5 with 4 controls and 6 AD samples, rank 6, and 4 residual degrees of freedom.
 
-Filtering retained 815,651 probes, and no missing beta values were observed after filtering. The exploratory limma analysis identified 4 probes meeting FDR < 0.05 and absolute delta-beta >= 0.05. The genomic inflation factor was 1.517, and DMRcate returned one exploratory region.
+Filtering retained 815,581 probes with complete beta values. The adjusted M-value effects correlated at **r = 0.977**, and all 100 probes ranked highest by the primary fit had the same effect direction in the shared-batch fit. Zero primary probes and one shared-batch probe met both FDR < 0.05 and absolute adjusted delta beta ≥ 0.05. The primary genomic inflation factor was **2.761**, and DMRcate found fewer than two individually significant CpGs for region calling.
 
-These values are descriptive outputs of a small, confounded subset. They should not be interpreted as replicated disease associations.
+The report includes the paired estimates for the leading probes and summarizes agreement across all probes. The workflow saves the full comparison locally as `results/differential_sensitivity.rds`.
+
+The direct within-batch diagnosis contrast comes from the shared batches. The two analyses share those samples, so their agreement measures sensitivity to cohort restriction. Elevated genomic inflation warrants caution when interpreting the p-values.
 
 ## Repository structure
 
@@ -59,7 +63,7 @@ run_all.sh                                 Command-line workflow
 - macOS or Linux
 - R 4.5.2 or a compatible R version
 - Internet access for GEO data, KEGG annotations, and package installation
-- Approximately 16 GB RAM for the selected raw-data subset
+- Approximately 16 GB RAM recommended for the 29-sample raw-array run
 - Pandoc 2.8 or newer for HTML report rendering
 
 ## Running the workflow
@@ -85,9 +89,9 @@ To check the saved outputs, render the report in a temporary directory, and exer
 
 ## Limitations and future work
 
-The analysis uses a small subset selected for local raw-array processing. Diagnosis is confounded with the observed batch groups, and age is recorded as `90+` for all selected samples. The data are bulk brain tissue, with no cell-type correction or replication cohort. The analysis is therefore exploratory.
+This is an exploratory analysis of one brain region with limited diagnosis overlap across batches. Age is reported as `90+` throughout and is excluded from the models. Adjustment for estimated neuronal proportion leaves possible confounding by other cell types. The probe filtering lacks a cross-reactive probe mask, and the study has no independent replication cohort.
 
-A larger study should use a prespecified covariate design with overlapping batches, estimate cell composition, include an independent replication cohort, and validate important findings experimentally. Further extensions could include genotype integration and comparison with blood or additional brain regions.
+Further work could validate a platform-specific cross-reactive probe mask, test the same contrast in an independent brain cohort, and account for repeated donors when extending to other brain regions.
 
 ## Citation
 
